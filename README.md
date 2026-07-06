@@ -5,9 +5,11 @@
 ## 프로젝트 구조
 
 ```
-mi/
+mi/                    # 모노레포 루트 = Unity 프로젝트
+├── Assets/            # BDS, Core, MissionSDK, Missions, Scenes
+├── ProjectSettings/
+├── Packages/
 ├── docs/              # 세분화 로드맵, SDK/API 명세
-├── unity/PinkSoft/    # Unity 프로젝트 (Boot/Lobby 씬, BDS, Core, MissionSDK)
 ├── backend/           # REST API + MariaDB 스키마 + 점수 검증
 ├── tools/bds-capture/ # Go/No-Go용 LiDAR 녹화 CLI
 └── tests/             # BDS 단위 테스트
@@ -60,7 +62,7 @@ BdsService (Core 상주, DontDestroyOnLoad)
 2. **Lobby** — `BdsCalibrationLauncher`, 미션 카탈로그
 3. **Mission** — 번들 미션만 배치 (BDS/교정 UI 없음)
 
-상세 스펙: [Mission SDK v1](docs/mission-sdk-v1.md) · Unity 가이드: [unity/PinkSoft/README.md](unity/PinkSoft/README.md)
+상세 스펙: [Mission SDK v1](docs/mission-sdk-v1.md) · Unity 가이드: [unity/PinkSoft/README.md](unity/PinkSoft/README.md) (→ 레포 루트에서 Hub로 열기)
 
 ---
 

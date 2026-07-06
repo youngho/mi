@@ -1,6 +1,6 @@
 # Mission SDK v1 스펙
 
-PinkSoft Core와 외부 미션 모듈 간 계약입니다. 구현: `unity/PinkSoft/Assets/MissionSDK/`
+PinkSoft Core와 외부 미션 모듈 간 계약입니다. 구현: `Assets/MissionSDK/`
 
 ## 네임스페이스
 
