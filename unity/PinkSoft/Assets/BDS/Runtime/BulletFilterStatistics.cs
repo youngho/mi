@@ -14,6 +14,15 @@ namespace PinkSoft.BDS
         public float DetectionRate => _shotsFired > 0 ? (float)_detections / _shotsFired : 0f;
         public float DoubleDetectionRate => _detections > 0 ? (float)_doubleDetections / _detections : 0f;
 
+        public void Reset()
+        {
+            _shotsFired = 0;
+            _detections = 0;
+            _doubleDetections = 0;
+            _latenciesUs.Clear();
+            _lastDetectionFrame = ulong.MaxValue;
+        }
+
         public void RegisterShotFired() => _shotsFired++;
 
         public void RegisterDetection(ulong frameId, ulong timestampUs, ulong shotTimestampUs)

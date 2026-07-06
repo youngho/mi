@@ -1,5 +1,18 @@
 [
   {
+    "missionId": "system_bds_calibration",
+    "title": "BDS 센서 설정",
+    "description": "LiDAR 4점 교정 및 발사 테스트 — 매장 센서 셋업용",
+    "author": "PinkSoft",
+    "version": "1.0.0",
+    "bundleUrl": "",
+    "requiredLevel": 1,
+    "entryFee": 0,
+    "timeLimit": 600,
+    "targetScore": 0,
+    "category": "system"
+  },
+  {
     "missionId": "builtin_target_practice",
     "title": "타겟 연습",
     "description": "고정 타겟을 순서대로 맞추세요",

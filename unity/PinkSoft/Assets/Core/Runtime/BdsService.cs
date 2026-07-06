@@ -15,16 +15,24 @@ namespace PinkSoft.Core
         [SerializeField] bool preferBdsHardware = true;
         [SerializeField] bool useDebugInputInEditor = true;
         [SerializeField] string calibrationSavePath = "calibration.json";
+        [SerializeField] string serialPortName = "";
+        [SerializeField] int baudRate = 256000;
+        [SerializeField] bool autoConnectReader = true;
 
         readonly CalibrationManager _calibration = new();
-        LidarBulletFilter? _filter;
+        LidarBulletFilter _filter = new();
+        LidarHighSpeedReader? _reader;
         BdsInputSource? _bdsInput;
         TouchInputSource? _touchInput;
         DebugInputSource? _debugInput;
+        IInputSource? _savedInput;
+        bool _calibrationModeActive;
 
         public CalibrationManager Calibration => _calibration;
-        public LidarBulletFilter? Filter => _filter;
+        public LidarBulletFilter Filter => _filter;
+        public LidarHighSpeedReader? Reader => _reader;
         public IInputSource? ActiveInput { get; private set; }
+        public bool IsCalibrationModeActive => _calibrationModeActive;
 
         void Awake()
         {
@@ -37,7 +45,6 @@ namespace PinkSoft.Core
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
-            _filter = gameObject.AddComponent<LidarBulletFilter>();
             _bdsInput = gameObject.AddComponent<BdsInputSource>();
             _touchInput = gameObject.AddComponent<TouchInputSource>();
             _debugInput = gameObject.AddComponent<DebugInputSource>();
@@ -46,8 +53,32 @@ namespace PinkSoft.Core
 
             TryLoadCalibration();
 
+            if (autoConnectReader)
+                TryConnectReader();
+
             ActiveInput = SelectInputSource();
             ActiveInput.Enable();
+        }
+
+        void Update()
+        {
+            PumpReaderToFilter();
+        }
+
+        void PumpReaderToFilter()
+        {
+            if (_reader == null)
+                return;
+
+            int processed = 0;
+            while (processed < 500 && _reader.TryDequeue(out var point))
+            {
+                _filter.ProcessPoint(point);
+                processed++;
+            }
+
+            if (processed > 0)
+                _filter.EndScanFrame();
         }
 
         IInputSource SelectInputSource()
@@ -83,9 +114,114 @@ namespace PinkSoft.Core
             _calibration.SaveToFile(path);
         }
 
+        /// <summary>PMS BDS Calibration 시스템 모드 진입.</summary>
+        public void EnterCalibrationMode()
+        {
+            if (_calibrationModeActive)
+                return;
+
+            _calibrationModeActive = true;
+            _savedInput = ActiveInput;
+            ActiveInput?.Disable();
+
+            if (!TryConnectReader() && string.IsNullOrWhiteSpace(serialPortName))
+                Debug.Log("BdsService: UART 미설정 — 터치/디버그로 교정·테스트 가능");
+
+            ActiveInput = _bdsInput != null && (_reader != null || _bdsInput.IsAvailable)
+                ? _bdsInput
+                : _touchInput ?? _debugInput;
+            ActiveInput?.Enable();
+        }
+
+        /// <summary>BDS Calibration 모드 종료 후 일반 입력 소스로 복귀.</summary>
+        public void ExitCalibrationMode()
+        {
+            if (!_calibrationModeActive)
+                return;
+
+            _calibrationModeActive = false;
+            ActiveInput?.Disable();
+            ActiveInput = _savedInput ?? SelectInputSource();
+            _savedInput = null;
+            ActiveInput?.Enable();
+        }
+
+        public bool TryConnectReader(string? portName = null)
+        {
+            var port = portName ?? serialPortName;
+            if (string.IsNullOrWhiteSpace(port))
+                return _reader != null;
+
+            var adapter = CreateSerialPortAdapter(port, baudRate);
+            if (adapter == null)
+                return false;
+
+            try
+            {
+                _reader?.Dispose();
+                _reader = new LidarHighSpeedReader(adapter, new RplidarA3Parser());
+                _reader.Start();
+                Debug.Log($"BdsService: LiDAR reader started on {port}");
+                return true;
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"BdsService: reader connect failed — {ex.Message}");
+                _reader = null;
+                return false;
+            }
+        }
+
+        public void DisconnectReader()
+        {
+            _reader?.Dispose();
+            _reader = null;
+        }
+
+        public void SetActiveInput(IInputSource source)
+        {
+            ActiveInput?.Disable();
+            ActiveInput = source;
+            ActiveInput?.Enable();
+        }
+
+        public BdsHardwareStatus GetHardwareStatus()
+        {
+            return new BdsHardwareStatus
+            {
+                InputSourceName = ActiveInput?.SourceName ?? "none",
+                IsHardwareInput = ActiveInput == _bdsInput,
+                IsReaderConnected = _reader != null,
+                ReaderState = _reader?.State.ToString() ?? "Stopped",
+                BytesReceived = _reader?.BytesReceived ?? 0,
+                PointsParsed = _reader?.PointsParsed ?? 0,
+                QueueDepth = _reader?.QueueDepth ?? 0,
+                IsCalibrated = _calibration.IsComplete,
+                CalibrationModeActive = _calibrationModeActive
+            };
+        }
+
+        static SerialPortLike? CreateSerialPortAdapter(string portName, int baud)
+        {
+#if UNITY_STANDALONE_WIN || UNITY_STANDALONE_OSX || UNITY_STANDALONE_LINUX
+            try
+            {
+                return new UnitySerialPortAdapter(portName, baud);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"Serial port open failed: {ex.Message}");
+                return null;
+            }
+#else
+            return null;
+#endif
+        }
+
         void OnDestroy()
         {
             ActiveInput?.Disable();
+            DisconnectReader();
             if (Instance == this)
                 Instance = null;
         }

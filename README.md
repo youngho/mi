@@ -37,7 +37,7 @@ BdsService (Core 상주, DontDestroyOnLoad)
 | 입력 계약 | `InputHit`, `IMissionInput`을 MissionSDK로 이동. 외부 미션은 BDS 어셈블리 미참조 |
 | 미션 초기화 | `InitializeMission(user, MissionContext)` — Core가 `Input`·`Config` 주입 |
 | Core 서비스 | `BdsService` (LiDAR·필터·교정), `MissionInputRouter` (입력 라우팅) |
-| 교정 UI | `LobbyCalibrationUI` — 로비 전용. 미션 씬에는 배치하지 않음 |
+| 교정·센서 테스트 | `BdsCalibrationMode` — PMS 시스템 모드 (4점 교정 + 발사 테스트) |
 | 내장 미션 | `TargetPracticeMission`, `TimedEscapeMission`, `ComboShootMission` — Context.Input 구독 |
 | 백엔드 | `POST /auth/login`, `GET /missions/catalog`, `POST /mission/complete`, `GET /ranking/:id` |
 
@@ -49,13 +49,15 @@ BdsService (Core 상주, DontDestroyOnLoad)
 | `Assets/Core/Runtime/BdsService.cs` | BDS lifecycle 싱글톤 |
 | `Assets/Core/Runtime/MissionInputRouter.cs` | 활성 미션 입력 라우터 |
 | `Assets/Core/Runtime/MissionSessionController.cs` | 미션 세션·점수 브리지 |
-| `Assets/Core/Runtime/Lobby/LobbyCalibrationUI.cs` | 4점 Homography 교정 (로비) |
+| `Assets/Core/Runtime/Modes/BdsCalibrationMode.cs` | BDS 교정·발사 테스트 시스템 모드 |
+| `Assets/Core/Runtime/BdsCalibrationLauncher.cs` | 로비 → 센서 설정 모드 진입 |
+| `Assets/Core/Runtime/Lobby/LobbyCalibrationUI.cs` | 로비 진입 버튼 |
 | `Assets/BDS/Runtime/` | LiDAR 파서·필터 (Core 전용, 미션 미포함) |
 
 ### 씬 구성 권장
 
 1. **Boot** — `BdsService`, `MissionInputRouter`, `MissionSessionController`
-2. **Lobby** — `LobbyCalibrationUI`, 미션 카탈로그
+2. **Lobby** — `BdsCalibrationLauncher`, 미션 카탈로그
 3. **Mission** — 번들 미션만 배치 (BDS/교정 UI 없음)
 
 상세 스펙: [Mission SDK v1](docs/mission-sdk-v1.md) · Unity 가이드: [unity/PinkSoft/README.md](unity/PinkSoft/README.md)
@@ -183,7 +185,7 @@ BDS는 **PMS Core의 하위시스템**으로 상주합니다 (`BdsService`). LiD
 [BdsInputSource] ──(InputHit)──> [MissionInputRouter] ──> [활성 미션 IMissionController]
 ```
 
-- **교정:** 로비 씬 `LobbyCalibrationUI`에서 4점 Homography 수행 (미션 씬 X)
+- **교정·센서 테스트:** 로비에서 `BdsCalibrationMode` 시스템 모드 (4점 Homography + 발사 테스트)
 - **모바일:** Core가 `TouchInputSource`로 교체 — 미션 코드 변경 없음
 
 ```
@@ -244,7 +246,7 @@ BDS는 **PMS Core의 하위시스템**으로 상주합니다 (`BdsService`). LiD
 3. **Phase 3: 초고속 탄환 필터 알고리즘 구현 (2주차)**
    - 실제 비비탄을 발사하여 1프레임 미만으로 찍히는 점의 거리/강도(Confidence) 변화를 프로파일링하고, 팅겨 나간 후 천의 흔들림(지속 노이즈)을 지워버리는 컷오프(Cut-off) 필터를 적용합니다.
 4. **Phase 4: 4점 교정(Calibration) 시스템 구축 (2주차)**
-   - 로비 씬 `LobbyCalibrationUI`에서 프로젝터 화면 모서리를 쏘아 Homography 매핑 (구현: `Assets/Core/Runtime/Lobby/`)
+   - `BdsCalibrationMode`에서 프로젝터 화면 모서리 4점 Homography + 발사 테스트
 5. **Phase 5: 유니티 게임 콘텐츠 연동 (3주차)**
    - `MissionInputRouter` → 미션 `ReportEvent` → Core `ScoreEngine` 파이프라인 연동 (구현: `MissionSessionController`, 내장 미션 3종)
 

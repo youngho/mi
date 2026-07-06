@@ -5,7 +5,8 @@
 | 경로 | 역할 |
 |------|------|
 | `Assets/BDS/` | LiDAR 시리얼, 필터 (Core `BdsService`가 사용) |
-| `Assets/Core/` | BdsService, MissionInputRouter, 점수 엔진, 로비 교정 UI |
+| `Assets/Core/` | BdsService, MissionInputRouter, 점수 엔진, BdsCalibrationLauncher |
+| `Assets/Core/Runtime/Modes/` | `BdsCalibrationMode` — 센서 교정·테스트 시스템 모드 |
 | `Assets/MissionSDK/` | `IMissionController`, `MissionContext`, `InputHit`, `IMissionInput` |
 | `Assets/Missions/` | 내장 미션 3종 |
 | `Assets/StreamingAssets/Missions/` | 카탈로그 JSON |
@@ -22,7 +23,7 @@ flowchart LR
 ```
 
 1. **Boot** — `BdsService` (DontDestroyOnLoad), `MissionInputRouter` 초기화
-2. **Lobby** — `LobbyCalibrationUI` (4점 교정), 미션 카탈로그
+2. **Lobby** — `BdsCalibrationLauncher` (센서 설정), 미션 카탈로그
 3. **Mission** — 번들 로드 미션만 배치. BDS/교정 UI 없음
 
 ## BDS + PMS 통합
@@ -41,7 +42,8 @@ flowchart LR
 
 ### Lobby 씬
 
-- `LobbyCalibrationUI` — 교정 전용 (미션 씬에 두지 않음)
+- `BdsCalibrationLauncher` + `BdsCalibrationMode` — 센서 4점 교정·발사 테스트 (시스템 모드)
+- `LobbyCalibrationUI` — 위 모드 진입 버튼 (선택)
 
 ### Mission 씬
 

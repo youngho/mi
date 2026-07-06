@@ -80,6 +80,20 @@ namespace PinkSoft.BDS
                 Data.ComputeHomography();
         }
 
+        /// <summary>터치/디버그 입력용 — 화면 정규 좌표로 4점 교정.</summary>
+        public void RegisterCornerFromScreen(float normU, float normV)
+        {
+            if (CurrentCornerIndex >= 4)
+                return;
+            Data.lidarCorners[CurrentCornerIndex, 0] = normU;
+            Data.lidarCorners[CurrentCornerIndex, 1] = normV;
+            Data.screenCorners[CurrentCornerIndex, 0] = normU;
+            Data.screenCorners[CurrentCornerIndex, 1] = normV;
+            CurrentCornerIndex++;
+            if (CurrentCornerIndex == 4)
+                Data.ComputeHomography();
+        }
+
         public void Reset() => BeginSession();
 
         public void LoadFromFile(string path)

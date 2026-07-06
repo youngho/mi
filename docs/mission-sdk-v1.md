@@ -171,4 +171,4 @@ public class MissionConfig
 
 ## 교정
 
-4점 Homography 교정은 **로비 씬** `LobbyCalibrationUI`에서만 수행. 미션은 교정 완료된 `InputHit`만 수신합니다.
+4점 Homography 교정·발사 테스트는 **로비** `BdsCalibrationMode` 시스템 모드에서 수행. 미션은 교정 완료된 `InputHit`만 수신합니다.

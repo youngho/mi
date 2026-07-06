@@ -31,6 +31,12 @@ namespace PinkSoft.Core
 
         public void StartMission(RuntimeUserData user, MissionConfig config)
         {
+            StartMission(missionControllerBehaviour, user, config);
+        }
+
+        public void StartMission(MonoBehaviour missionBehaviour, RuntimeUserData user, MissionConfig config)
+        {
+            missionControllerBehaviour = missionBehaviour;
             _mission = missionControllerBehaviour as IMissionController;
             if (_mission == null)
             {
@@ -40,9 +46,6 @@ namespace PinkSoft.Core
 
             _user = user;
             _config = config;
-
-            if (BdsService.Instance != null)
-                inputRouter.Configure(BdsService.Instance.ActiveInput!);
 
             _scoreEngine = new ScoreEngine();
             _scoreEngine.ScoreChanged += HandleScoreChanged;
@@ -56,8 +59,12 @@ namespace PinkSoft.Core
                 config = config
             };
 
-            inputRouter.Bind();
             _mission.InitializeMission(user, context);
+
+            if (BdsService.Instance != null)
+                inputRouter.Configure(BdsService.Instance.ActiveInput!);
+
+            inputRouter.Bind();
             _playTime = 0f;
             _running = true;
         }

@@ -1,82 +1,30 @@
-using PinkSoft.BDS;
+using PinkSoft.Core;
 using UnityEngine;
 
 namespace PinkSoft.Core.Lobby
 {
     /// <summary>
-    /// 로비/설정 전용 4점 교정 UI. 미션 씬에는 배치하지 않음.
-    /// BdsService가 상주하는 동안 교정 데이터를 유지합니다.
+    /// 로비에서 BDS Calibration 시스템 모드 진입 버튼.
+    /// 4점 교정·발사 테스트는 <see cref="Modes.BdsCalibrationMode"/>에서 수행합니다.
     /// </summary>
     public sealed class LobbyCalibrationUI : MonoBehaviour
     {
-        static readonly string[] CornerLabels = { "좌하", "우하", "우상", "좌상" };
+        [SerializeField] BdsCalibrationLauncher launcher = null!;
 
-        [SerializeField] string saveFileName = "calibration.json";
-
-        CalibrationManager? _manager;
-        LidarBulletFilter? _filter;
-        bool _listeningForShot;
-
-        void Start()
+        void Awake()
         {
-            if (BdsService.Instance == null)
-            {
-                Debug.LogWarning("LobbyCalibrationUI: BdsService not found.");
-                return;
-            }
-
-            _manager = BdsService.Instance.Calibration;
-            _filter = BdsService.Instance.Filter;
-            if (_filter != null)
-                _filter.OnBulletDetected += OnBulletShot;
-        }
-
-        void OnDestroy()
-        {
-            if (_filter != null)
-                _filter.OnBulletDetected -= OnBulletShot;
-        }
-
-        public void BeginCalibration()
-        {
-            _manager?.BeginSession();
-            _listeningForShot = true;
-        }
-
-        void OnBulletShot(BulletDetection det)
-        {
-            if (!_listeningForShot || _manager == null || _manager.IsComplete)
-                return;
-
-            _manager.RegisterCornerShot(det.LidarX, det.LidarY);
-            if (_manager.IsComplete)
-            {
-                _listeningForShot = false;
-                BdsService.Instance?.SaveCalibration();
-            }
+            if (launcher == null)
+                launcher = FindFirstObjectByType<BdsCalibrationLauncher>();
         }
 
         void OnGUI()
         {
-            if (_manager == null)
-                return;
-
-            GUILayout.BeginArea(new Rect(10, 40, 360, 220), "BDS 교정 (로비 전용)");
-            if (!_manager.IsComplete)
-            {
-                int idx = Mathf.Min(_manager.CurrentCornerIndex, 3);
-                GUILayout.Label($"다음 모서리: {CornerLabels[idx]}");
-                if (GUILayout.Button("교정 시작"))
-                    BeginCalibration();
-            }
+            GUILayout.BeginArea(new Rect(10, 40, 360, 80), "BDS");
+            GUILayout.Label("센서 교정·발사 테스트는 PMS 시스템 모드에서 진행합니다.");
+            if (launcher != null && GUILayout.Button("BDS 센서 설정 모드 시작"))
+                launcher.LaunchForCurrentUser();
             else
-            {
-                GUILayout.Label("교정 완료 — 미션에서 InputHit 사용");
-                if (GUILayout.Button("재시도"))
-                    BeginCalibration();
-                if (GUILayout.Button("저장"))
-                    BdsService.Instance?.SaveCalibration();
-            }
+                GUILayout.Label("BdsCalibrationLauncher를 씬에 배치하세요.");
             GUILayout.EndArea();
         }
     }
