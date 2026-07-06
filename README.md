@@ -7,7 +7,7 @@
 ```
 mi/
 ├── docs/              # 세분화 로드맵, SDK/API 명세
-├── unity/PinkSoft/    # Unity C# (BDS, Core, MissionSDK, Missions)
+├── unity/PinkSoft/    # Unity 프로젝트 (Boot/Lobby 씬, BDS, Core, MissionSDK)
 ├── backend/           # REST API + MariaDB 스키마 + 점수 검증
 ├── tools/bds-capture/ # Go/No-Go용 LiDAR 녹화 CLI
 └── tests/             # BDS 단위 테스트
