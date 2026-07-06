@@ -1,5 +1,67 @@
 # PinkSoft Mission System (PMS) 기획서
 
+> **구현 산출물:** [개발 로드맵](docs/roadmap.md) · [BDS Go/No-Go](docs/bds-gonogo-checklist.md) · [Mission SDK v1](docs/mission-sdk-v1.md) · [API 명세](docs/api-openapi.yaml) · [Addressables 결정](docs/decisions/addressables.md)
+
+## 프로젝트 구조
+
+```
+mi/
+├── docs/              # 세분화 로드맵, SDK/API 명세
+├── unity/PinkSoft/    # Unity C# (BDS, Core, MissionSDK, Missions)
+├── backend/           # REST API + MariaDB 스키마 + 점수 검증
+├── tools/bds-capture/ # Go/No-Go용 LiDAR 녹화 CLI
+└── tests/             # BDS 단위 테스트
+```
+
+**MVP 우선순위:** BDS 하드웨어 검증 → 단일 미션 프로토타입 → PMS 플랫폼
+
+## 구현 변경 요약 (BDS-PMS 통합)
+
+BDS(Bullet Detection System)는 **PMS Core에 상주**하며, 미션 번들에는 가공된 적중 좌표(`InputHit`)만 전달합니다.
+
+### 런타임 구조
+
+```
+BdsService (Core 상주, DontDestroyOnLoad)
+  → IInputSource (BDS / Touch / Debug)
+    → MissionInputRouter (활성 미션 1개에만 라우팅)
+      → IMissionInput (MissionContext.Input)
+        → IMissionController (미션 번들)
+          → ReportEvent → ScoreEngine (Core)
+```
+
+### 주요 변경
+
+| 항목 | 내용 |
+|------|------|
+| 입력 계약 | `InputHit`, `IMissionInput`을 MissionSDK로 이동. 외부 미션은 BDS 어셈블리 미참조 |
+| 미션 초기화 | `InitializeMission(user, MissionContext)` — Core가 `Input`·`Config` 주입 |
+| Core 서비스 | `BdsService` (LiDAR·필터·교정), `MissionInputRouter` (입력 라우팅) |
+| 교정 UI | `LobbyCalibrationUI` — 로비 전용. 미션 씬에는 배치하지 않음 |
+| 내장 미션 | `TargetPracticeMission`, `TimedEscapeMission`, `ComboShootMission` — Context.Input 구독 |
+| 백엔드 | `POST /auth/login`, `GET /missions/catalog`, `POST /mission/complete`, `GET /ranking/:id` |
+
+### Unity 핵심 파일
+
+| 경로 | 역할 |
+|------|------|
+| `Assets/MissionSDK/Runtime/InputTypes.cs` | `InputHit`, `MissionContext`, `IMissionInput` |
+| `Assets/Core/Runtime/BdsService.cs` | BDS lifecycle 싱글톤 |
+| `Assets/Core/Runtime/MissionInputRouter.cs` | 활성 미션 입력 라우터 |
+| `Assets/Core/Runtime/MissionSessionController.cs` | 미션 세션·점수 브리지 |
+| `Assets/Core/Runtime/Lobby/LobbyCalibrationUI.cs` | 4점 Homography 교정 (로비) |
+| `Assets/BDS/Runtime/` | LiDAR 파서·필터 (Core 전용, 미션 미포함) |
+
+### 씬 구성 권장
+
+1. **Boot** — `BdsService`, `MissionInputRouter`, `MissionSessionController`
+2. **Lobby** — `LobbyCalibrationUI`, 미션 카탈로그
+3. **Mission** — 번들 미션만 배치 (BDS/교정 UI 없음)
+
+상세 스펙: [Mission SDK v1](docs/mission-sdk-v1.md) · Unity 가이드: [unity/PinkSoft/README.md](unity/PinkSoft/README.md)
+
+---
+
 ## 외부 확장형 미션 구조 및 API 명세
 
 본 문서는 **PinkSoft**에서 개발하는 유니티 기반 모바일 게임 플랫폼의 핵심인 **'미션 및 사용자 관리 시스템'**의 아키텍처 및 기획 사양을 정의합니다. 본 시스템은 스크린 골프(골프존)의 코스 선택 방식을 벤치마킹하여, 메인 플랫폼(Core)과 외부 모듈(Mission)을 완전 분리하고 공통 API를 통해 누구나 미션을 제작 및 확장할 수 있는 플러그인 구조를 지향합니다.
@@ -14,9 +76,11 @@
 +--------------------------------------------------------------------------+
 | PinkSoft Core (메인 게임)                                                |
 | - 유저 세션 및 데이터 관리 (UserData)                                    |
+| - BDS (LiDAR·필터·교정) — BdsService 상주                                |
+| - MissionInputRouter — 활성 미션에 InputHit 라우팅                       |
 | - 중앙 로비 UI / 미션 브라우저 및 스크롤 뷰                             |
 | - 보안 및 백엔드 API 통신 / 글로벌 랭킹 및 데이터 저장 (MariaDB)         |
-| - 에셋 번들 및 어드레서블 자산 동적 로더                                 |
+| - Addressables 미션 패키지 동적 로더                                     |
 +--------------------------------------------------------------------------+
           │
 (공통 Interface & API 계약)
@@ -24,8 +88,9 @@
           ▼
 +--------------------------------------------------------------------------+
 | Dynamic Mission Modules (외부 미션)                                      |
-| - 독립된 프리팹(Prefab) 또는 에셋 번들 (.bundle)                         |
-| - 미션 고유의 맵 디자인, 오브젝트 배치 및 연출 기믹                      |
+| - 독립된 프리팹(Prefab) 또는 Addressables 미션 패키지                    |
+| - MissionContext.Input(IMissionInput)으로 적중 좌표 수신                 |
+| - Raycast 판정 후 ReportEvent — BDS/LiDAR 코드 미포함                    |
 | - IMissionController 표준 규격 준수                                      |
 +--------------------------------------------------------------------------+
 ```
@@ -55,46 +120,30 @@
 
 ### 2.2 핵심 C# 인터페이스 (Core API)
 
+> **최신 스펙:** [Mission SDK v1](docs/mission-sdk-v1.md) — BDS는 Core(`BdsService`)에 상주하고, 미션에는 `MissionContext.Input`으로 가공된 `InputHit`만 주입합니다.
+
 외부에서 제작된 모든 미션의 루트(Root) 오브젝트는 반드시 아래 인터페이스를 구현하는 컴포넌트를 포함해야 합니다. Core는 이 인터페이스를 통해서만 미션을 제어합니다.
 
 ```csharp
 namespace PinkSoft.MissionSDK
 {
-    /// <summary>
-    /// 외부 미션과 Core 플랫폼을 연결하는 공통 인터페이스
-    /// </summary>
     public interface IMissionController
     {
-        // 1. 미션 초기화 (Core가 미션 로드 직후 호출하여 유저 정보 및 세팅 전달)
-        void InitializeMission(RuntimeUserData userData, MissionConfig config);
+        void InitializeMission(RuntimeUserData userData, MissionContext context);
+        void OnPause();
+        void OnResume();
+        void Shutdown();
+        void ReportEvent(ScoreEventType eventType, string targetId);
 
-        // 2. 미션 상태 변경에 따른 Core 알림 이벤트 (C# 액션)
-        System.Action<int> OnScoreChanged { get; set; }               // 점수 변동 시 호출 (실시간 UI 반영)
-        System.Action<bool, MissionResultData> OnMissionEnded { get; set; } // 미션 종료 시 호출 (성공/실패 여부 및 결과)
+        event Action<int> OnScoreChanged;
+        event Action<bool, MissionResultData> OnMissionEnded;
+        event Action<MissionError> OnError;
     }
 
-    [System.Serializable]
-    public class RuntimeUserData
+    public class MissionContext
     {
-        public string userId;
-        public string nickname;
-        public int currentLevel;
-        public EquipmentStats equipment; // 유저가 장착한 장비 능력치 데이터
-    }
-
-    [System.Serializable]
-    public class MissionConfig
-    {
-        public int difficultyLevel;      // 선택된 난이도 (1: Easy, 2: Normal, 3: Hard)
-        public string weatherCondition;  // 환경 조건 (맑음, 강풍, 비 등)
-    }
-
-    [System.Serializable]
-    public class MissionResultData
-    {
-        public int finalScore;
-        public int playTime;
-        public int starsEarned;          // 획득한 별 개수 (1~3개)
+        public IMissionInput Input;  // Core MissionInputRouter
+        public MissionConfig Config;
     }
 }
 ```
@@ -118,19 +167,31 @@ namespace PinkSoft.MissionSDK
 
 ## 4. 사용자 데이터 및 점수 관리 (Security & Anti-Cheat)
 
-1. **점수 검증 주도권 (Core Auth):** 외부 미션이 자체적으로 최종 점수를 판단해 서버에 직접 올리는 방식은 해킹 위험이 큽니다. 미션 내부에서 특정 이벤트(예: 타겟 적중, 미션 오브젝트 상호작용) 발생 시 OnScoreChanged 이벤트를 발생시키고, 점수 계산과 누적 로직은 메인 Core 시스템이 담당합니다.
+1. **점수 검증 주도권 (Core Auth):** 미션은 `ReportEvent`로 이벤트만 보고하고, 점수 계산·누적은 Core `ScoreEngine`이 담당합니다. 서버는 `eventLog`를 재계산해 검증합니다.
 2. **클리어 및 보상 지급:** 미션이 종료되면 Core 시스템이 백엔드 API(`api.pinksoft.io/mission/complete`)를 호출하여 유저 데이터베이스(MariaDB)의 골드 보상, 경험치 및 글로벌 랭킹 점수를 안전하게 갱신합니다.
 
 ## 5. BDS (Bullet Detection System)
 
-빔프로젝터 스크린 환경에서 **고속 LiDAR**로 직경 6mm 비비탄 알갱이를 직접 감지하고, 실시간 적중 좌표를 유니티 게임에 전달하는 하위 시스템입니다. 보급형 센서의 잔상 트릭을 배제하고, 초고속 샘플링(최소 16kHz ~ 32kHz) 기반의 라이다 스펙을 활용합니다. 미들웨어 없이 유니티 C#의 시리얼 통신(UART) 환경에서 고속 패킷을 직접 파싱하며, 초고속 UART 패킷 파싱은 백그라운드 스레드에서 처리하고 탄환 판정 결과만 메인 스레드로 전달하는 파이프라인 구조를 따릅니다.
+BDS는 **PMS Core의 하위시스템**으로 상주합니다 (`BdsService`). LiDAR/UART/필터/교정은 Core가 독점하고, 미션 번들에는 가공된 `InputHit`(스크린 좌표 + 타임스탬프)만 `MissionInputRouter`를 통해 전달합니다.
+
+빔프로젝터 스크린 환경에서 **고속 LiDAR**로 직경 6mm 비비탄 알갱이를 직접 감지합니다. 초고속 UART 패킷 파싱은 백그라운드 스레드에서 처리하고, 탄환 판정 결과만 메인 스레드로 전달하는 파이프라인 구조를 따릅니다.
+
+```
+[LiDAR 센서] ──(UART)──> [LidarHighSpeedReader] ──> [LidarBulletFilter]
+        │
+        ▼
+[BdsInputSource] ──(InputHit)──> [MissionInputRouter] ──> [활성 미션 IMissionController]
+```
+
+- **교정:** 로비 씬 `LobbyCalibrationUI`에서 4점 Homography 수행 (미션 씬 X)
+- **모바일:** Core가 `TouchInputSource`로 교체 — 미션 코드 변경 없음
 
 ```
 [LiDAR 센서] ──(UART 고속 스트리밍)──> [백그라운드 스레드] (Raw 바이트 파싱)
         │
         (탄환 매칭 좌표만 Thread-Safe Queue에 삽입)
         ▼
-[유니티 게임 오브젝트] <──(Update 메인 스레드)── [Dequeue 및 타겟 판정]
+[BdsService / BdsInputSource] <──(Update 메인 스레드)── [Dequeue 및 InputHit 변환]
 ```
 
 ### 5.1 하드웨어 구성 및 설치
@@ -182,10 +243,10 @@ namespace PinkSoft.MissionSDK
    - 라이다가 뿌려주는 각도/거리 데이터를 유니티 화면에 2D 점(Point)들로 실시간 시각화하여 센서 앞을 무언가 지나갈 때 점이 튀는 현상을 확인합니다.
 3. **Phase 3: 초고속 탄환 필터 알고리즘 구현 (2주차)**
    - 실제 비비탄을 발사하여 1프레임 미만으로 찍히는 점의 거리/강도(Confidence) 변화를 프로파일링하고, 팅겨 나간 후 천의 흔들림(지속 노이즈)을 지워버리는 컷오프(Cut-off) 필터를 적용합니다.
-4. **Phase 4: 인게임 4점 교정(Calibration) 시스템 구축 (2주차)**
-   - 프로젝터 화면 모서리를 쏘아 라이다 왜곡 좌표를 게임 화면의 정규화 좌표(0.0 ~ 1.0)로 매핑하는 UI 툴을 완성합니다.
+4. **Phase 4: 4점 교정(Calibration) 시스템 구축 (2주차)**
+   - 로비 씬 `LobbyCalibrationUI`에서 프로젝터 화면 모서리를 쏘아 Homography 매핑 (구현: `Assets/Core/Runtime/Lobby/`)
 5. **Phase 5: 유니티 게임 콘텐츠 연동 (3주차)**
-   - 최종 확정된 탄환 좌표를 유니티 2D/3D 공간 레이캐스트(Physics.Raycast)와 결합하여 타겟 붕괴, 스코어링 등의 게임 콘텐츠와 결합 및 최적화합니다.
+   - `MissionInputRouter` → 미션 `ReportEvent` → Core `ScoreEngine` 파이프라인 연동 (구현: `MissionSessionController`, 내장 미션 3종)
 
 ---
 

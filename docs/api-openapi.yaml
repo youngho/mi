@@ -1,0 +1,204 @@
+openapi: 3.0.3
+info:
+  title: PinkSoft Mission API
+  version: 1.0.0
+  description: PMS 백엔드 MVP API
+
+servers:
+  - url: https://api.pinksoft.io
+    description: Production
+  - url: http://localhost:3000
+    description: Local development
+
+paths:
+  /auth/login:
+    post:
+      summary: 로그인 및 JWT 발급
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nickname]
+              properties:
+                nickname:
+                  type: string
+                deviceId:
+                  type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /missions/catalog:
+    get:
+      summary: 미션 메타데이터 목록
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [official, community]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  missions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MissionMetadata'
+
+  /mission/complete:
+    post:
+      summary: 미션 완료 및 보상·랭킹 갱신
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MissionCompleteRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MissionCompleteResponse'
+        '422':
+          description: 점수 검증 실패
+
+  /ranking/{missionId}:
+    get:
+      summary: 미션별 글로벌 랭킹
+      parameters:
+        - name: missionId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RankingEntry'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        userId:
+          type: string
+        nickname:
+          type: string
+
+    MissionMetadata:
+      type: object
+      properties:
+        missionId:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        author:
+          type: string
+        version:
+          type: string
+        bundleUrl:
+          type: string
+        requiredLevel:
+          type: integer
+        entryFee:
+          type: integer
+        timeLimit:
+          type: integer
+        targetScore:
+          type: integer
+        category:
+          type: string
+
+    ScoreEventRecord:
+      type: object
+      properties:
+        eventType:
+          type: string
+        targetId:
+          type: string
+        timestampMs:
+          type: integer
+
+    MissionCompleteRequest:
+      type: object
+      required: [missionId, finalScore, playTime, eventLog]
+      properties:
+        missionId:
+          type: string
+        finalScore:
+          type: integer
+        playTime:
+          type: integer
+        starsEarned:
+          type: integer
+        eventLog:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreEventRecord'
+
+    MissionCompleteResponse:
+      type: object
+      properties:
+        goldReward:
+          type: integer
+        expGained:
+          type: integer
+        newRank:
+          type: integer
+        validated:
+          type: boolean
+
+    RankingEntry:
+      type: object
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: string
+        nickname:
+          type: string
+        score:
+          type: integer
+        playTime:
+          type: integer

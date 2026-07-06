@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>PinkSoft.BdsCapture</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\unity\PinkSoft\Assets\BDS\Runtime\**\*.cs"
+             Link="BDS\%(RecursiveDir)%(Filename)%(Extension)"
+             Exclude="..\..\unity\PinkSoft\Assets\BDS\Runtime\**\*.asmdef" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.IO.Ports" Version="8.0.0" />
+  </ItemGroup>
+</Project>

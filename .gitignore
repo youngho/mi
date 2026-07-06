@@ -1,0 +1,7 @@
+node_modules/
+.env
+logs/*.bin
+*.bundle
+.DS_Store
+bin/
+obj/

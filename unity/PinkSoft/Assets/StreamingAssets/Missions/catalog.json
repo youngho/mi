@@ -1,0 +1,41 @@
+[
+  {
+    "missionId": "builtin_target_practice",
+    "title": "타겟 연습",
+    "description": "고정 타겟을 순서대로 맞추세요",
+    "author": "PinkSoft",
+    "version": "1.0.0",
+    "bundleUrl": "https://cdn.pinksoft.io/missions/target_practice.bundle",
+    "requiredLevel": 1,
+    "entryFee": 0,
+    "timeLimit": 120,
+    "targetScore": 500,
+    "category": "official"
+  },
+  {
+    "missionId": "builtin_timed_escape",
+    "title": "제한 시간 탈출",
+    "description": "시간 내 탈출구에 도달하세요",
+    "author": "PinkSoft",
+    "version": "1.0.0",
+    "bundleUrl": "https://cdn.pinksoft.io/missions/timed_escape.bundle",
+    "requiredLevel": 3,
+    "entryFee": 200,
+    "timeLimit": 90,
+    "targetScore": 1000,
+    "category": "official"
+  },
+  {
+    "missionId": "builtin_combo_shoot",
+    "title": "콤보 슈팅",
+    "description": "연속 적중으로 콤보를 쌓으세요",
+    "author": "PinkSoft",
+    "version": "1.0.0",
+    "bundleUrl": "https://cdn.pinksoft.io/missions/combo_shoot.bundle",
+    "requiredLevel": 5,
+    "entryFee": 500,
+    "timeLimit": 180,
+    "targetScore": 5000,
+    "category": "official"
+  }
+]
