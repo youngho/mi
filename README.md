@@ -7,6 +7,7 @@
 ```
 mi/                    # 모노레포 루트 = Unity 프로젝트
 ├── Assets/            # BDS, Core, MissionSDK, Missions, Scenes
+│   └── Settings/      # URP Pipeline·Renderer 에셋
 ├── ProjectSettings/
 ├── Packages/
 ├── docs/              # 세분화 로드맵, SDK/API 명세
@@ -15,9 +16,11 @@ mi/                    # 모노레포 루트 = Unity 프로젝트
 └── tests/             # BDS 단위 테스트
 ```
 
+**개발 환경:** Unity **6000.5 LTS** (`ProjectSettings/ProjectVersion.txt`) · **URP 17.5** (`com.unity.render-pipelines.universal`) — Built-In RP 미사용 (Unity 6.5+ deprecated, 6.7까지 지원 종료 예정)
+
 **MVP 우선순위:** BDS 하드웨어 검증 → 단일 미션 프로토타입 → PMS 플랫폼
 
-**렌더 파이프라인:** URP 17.5 (`Assets/Settings/URP_Pipeline.asset`) — Unity 6.5+ Built-In RP deprecated 대응. 외부 미션 SDK도 URP 기준으로 제작.
+**외부 미션 제작:** Core와 동일하게 URP 필수. Built-In 셰이더·머티리얼은 호환되지 않음 → [Mission SDK v1](docs/mission-sdk-v1.md) 환경 요구사항 참고.
 
 ## 구현 변경 요약 (BDS-PMS 통합)
 
@@ -43,6 +46,7 @@ BdsService (Core 상주, DontDestroyOnLoad)
 | Core 서비스 | `BdsService` (LiDAR·필터·교정), `MissionInputRouter` (입력 라우팅) |
 | 교정·센서 테스트 | `BdsCalibrationMode` — PMS 시스템 모드 (4점 교정 + 발사 테스트) |
 | 내장 미션 | `TargetPracticeMission`, `TimedEscapeMission`, `ComboShootMission` — Context.Input 구독 |
+| 렌더 파이프라인 | **URP 17.5** — Built-In RP에서 전환 (`Assets/Settings/URP_Pipeline.asset`) |
 | 백엔드 | `POST /auth/login`, `GET /missions/catalog`, `POST /mission/complete`, `GET /ranking/:id` |
 
 ### Unity 핵심 파일
@@ -57,12 +61,15 @@ BdsService (Core 상주, DontDestroyOnLoad)
 | `Assets/Core/Runtime/BdsCalibrationLauncher.cs` | 로비 → 센서 설정 모드 진입 |
 | `Assets/Core/Runtime/Lobby/LobbyCalibrationUI.cs` | 로비 진입 버튼 |
 | `Assets/BDS/Runtime/` | LiDAR 파서·필터 (Core 전용, 미션 미포함) |
+| `Assets/Settings/URP_Pipeline.asset` | URP 렌더 파이프라인 (Graphics·Quality 기본값) |
+| `Assets/Settings/URP_Renderer.asset` | URP Forward Renderer |
+| `Assets/UniversalRenderPipelineGlobalSettings.asset` | URP 글로벌 설정 |
 
 ### 씬 구성 권장
 
-1. **Boot** — `BdsService`, `MissionInputRouter`, `MissionSessionController`
+1. **Boot** — `BdsService`, `MissionInputRouter`, `MissionSessionController` · Main Camera에 `UniversalAdditionalCameraData`
 2. **Lobby** — `BdsCalibrationLauncher`, 미션 카탈로그
-3. **Mission** — 번들 미션만 배치 (BDS/교정 UI 없음)
+3. **Mission** — 번들 미션만 배치 (BDS/교정 UI 없음) · URP 셰이더·머티리얼 사용
 
 상세 스펙: [Mission SDK v1](docs/mission-sdk-v1.md) · Unity 가이드: [unity/PinkSoft/README.md](unity/PinkSoft/README.md) (→ 레포 루트에서 Hub로 열기)
 
