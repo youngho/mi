@@ -6,6 +6,11 @@ PinkSoft Core와 외부 미션 모듈 간 계약입니다. 구현: `Assets/Missi
 
 `PinkSoft.MissionSDK`
 
+## 환경 요구사항
+
+- Unity **6000.5 LTS** 이상
+- **URP** (Universal Render Pipeline) — Core와 동일 파이프라인. Built-In RP 미지원.
+
 ## 아키텍처: BDS는 Core 상주, 미션은 InputHit만 수신
 
 ```mermaid

@@ -17,6 +17,8 @@ mi/                    # 모노레포 루트 = Unity 프로젝트
 
 **MVP 우선순위:** BDS 하드웨어 검증 → 단일 미션 프로토타입 → PMS 플랫폼
 
+**렌더 파이프라인:** URP 17.5 (`Assets/Settings/URP_Pipeline.asset`) — Unity 6.5+ Built-In RP deprecated 대응. 외부 미션 SDK도 URP 기준으로 제작.
+
 ## 구현 변경 요약 (BDS-PMS 통합)
 
 BDS(Bullet Detection System)는 **PMS Core에 상주**하며, 미션 번들에는 가공된 적중 좌표(`InputHit`)만 전달합니다.
