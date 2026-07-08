@@ -50,5 +50,18 @@
     "timeLimit": 180,
     "targetScore": 5000,
     "category": "official"
+  },
+  {
+    "missionId": "aegis_rail_shooter",
+    "title": "이지스 (AEGIS)",
+    "description": "넥사 코어 빌딩 침투 — 4스테이지 레일 슈터",
+    "author": "PinkSoft",
+    "version": "1.0.0",
+    "bundleUrl": "https://cdn.pinksoft.io/missions/aegis_rail_shooter.bundle",
+    "requiredLevel": 1,
+    "entryFee": 0,
+    "timeLimit": 3600,
+    "targetScore": 10000,
+    "category": "official"
   }
 ]
