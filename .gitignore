@@ -2,6 +2,7 @@ node_modules/
 .env
 logs/*.bin
 *.bundle
+!Assets/StreamingAssets/Missions/*.bundle
 .DS_Store
 bin/
 obj/
