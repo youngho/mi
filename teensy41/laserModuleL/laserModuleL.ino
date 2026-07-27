@@ -29,6 +29,19 @@
  *       오픈드레인 구동을 유지한다.
  *   - LD : 락 시 오픈콜렉터 LOW
  *   - CLK 0.1~10 kHz. fFG(servo) = fCLK ÷ CLKSEL (1 또는 2)
+ *
+ * ---------------------------------------------------------------------------
+ * Photodiode / LM393 센서 모듈 (레이저 수신 테스트)
+ * ---------------------------------------------------------------------------
+ *   VCC → Teensy 3V
+ *   GND → Teensy GND (공통)
+ *   DO  → Teensy PIN_SENSOR_DO
+ *   AO  → Teensy PIN_SENSOR_AO (선택, 아날로그 세기)
+ *
+ *   모듈마다 DO 극성이 다름:
+ *     SENSOR_DO_ACTIVE_LOW=true  → DO=LOW 일 때 HIT (흔한 LM393 보드)
+ *     SENSOR_DO_ACTIVE_LOW=false → DO=HIGH 일 때 HIT
+ *   반대로 나오면 아래 상수만 바꾸면 된다.
  * ---------------------------------------------------------------------------
  */
 
@@ -36,6 +49,11 @@
 static const int PIN_MOTOR_CLK = 2;   // C
 static const int PIN_MOTOR_LD  = 3;   // L
 static const int PIN_MOTOR_SS  = 4;   // S
+static const int PIN_SENSOR_DO = 5;   // 포토다이오드 모듈 DO
+static const int PIN_SENSOR_AO = A0;  // 포토다이오드 모듈 AO (선택)
+
+// DO=LOW 를 HIT로 볼지 여부 (보드마다 다름 — 반대로면 false)
+static const bool SENSOR_DO_ACTIVE_LOW = true;
 
 // ---- Motor defaults ----
 static const uint32_t CLK_HZ_DEFAULT = 2000;  // 시작용 보수적 값 (1~10 kHz 권장)
@@ -47,6 +65,8 @@ static volatile uint32_t g_clkHz = CLK_HZ_DEFAULT;
 static volatile bool g_clkHigh = true;
 static bool g_running = false;
 static bool g_lastLocked = false;
+static bool g_lastHit = false;
+static bool g_sensorReady = false;
 
 // 오픈드레인: LOW = 출력 LOW, HIGH = 입력(Hi-Z) → 보드 풀업
 static inline void odWrite(int pin, bool high)
@@ -140,6 +160,34 @@ static bool isLocked()
   return digitalRead(PIN_MOTOR_LD) == LOW;
 }
 
+static bool isSensorHit()
+{
+  const bool doHigh = digitalRead(PIN_SENSOR_DO) == HIGH;
+  return SENSOR_DO_ACTIVE_LOW ? !doHigh : doHigh;
+}
+
+static void pollSensor()
+{
+  if (!g_sensorReady) {
+    return;
+  }
+
+  const bool hit = isSensorHit();
+  if (hit == g_lastHit) {
+    return;
+  }
+  g_lastHit = hit;
+
+  const int ao = analogRead(PIN_SENSOR_AO);
+  if (hit) {
+    Serial.printf("[sensor] HIT  (DO=%d AO=%d)\n",
+                  digitalRead(PIN_SENSOR_DO), ao);
+  } else {
+    Serial.printf("[sensor] CLEAR (DO=%d AO=%d)\n",
+                  digitalRead(PIN_SENSOR_DO), ao);
+  }
+}
+
 static void printHelp()
 {
   Serial.println();
@@ -147,7 +195,8 @@ static void printHelp()
   Serial.println("  start [hz]  - motor start (default/current clk)");
   Serial.println("  stop        - motor stop");
   Serial.println("  clk <hz>    - set clock while running (100~10000)");
-  Serial.println("  status      - print running / lock / clk");
+  Serial.println("  status      - print running / lock / clk / sensor");
+  Serial.println("  sensor      - print sensor DO/AO once");
   Serial.println("  help        - this help");
   Serial.println();
 }
@@ -177,10 +226,20 @@ static void handleSerial()
       motorStop();
     } else if (line == "status") {
       Serial.println("[cmd] status 수신");
-      Serial.printf("[status] running=%d locked=%d clk=%lu Hz\n",
+      Serial.printf("[status] running=%d locked=%d clk=%lu Hz hit=%d DO=%d AO=%d\n",
                     g_running ? 1 : 0,
                     isLocked() ? 1 : 0,
-                    (unsigned long)g_clkHz);
+                    (unsigned long)g_clkHz,
+                    isSensorHit() ? 1 : 0,
+                    digitalRead(PIN_SENSOR_DO),
+                    analogRead(PIN_SENSOR_AO));
+    } else if (line == "sensor") {
+      Serial.println("[cmd] sensor 수신");
+      Serial.printf("[sensor] hit=%d DO=%d AO=%d (active_low=%d)\n",
+                    isSensorHit() ? 1 : 0,
+                    digitalRead(PIN_SENSOR_DO),
+                    analogRead(PIN_SENSOR_AO),
+                    SENSOR_DO_ACTIVE_LOW ? 1 : 0);
     } else if (line.startsWith("start")) {
       Serial.println("[cmd] start 수신");
       uint32_t hz = g_clkHz;
@@ -231,18 +290,29 @@ void setup()
 
   Serial.println();
   Serial.println("[stage] ===== setup 시작 =====");
-  Serial.println("[stage] 1/4 Serial 115200 ready");
+  Serial.println("[stage] 1/5 Serial 115200 ready");
 
-  Serial.println("[stage] 2/4 LD 핀 INPUT_PULLUP 설정");
+  Serial.println("[stage] 2/5 LD 핀 INPUT_PULLUP 설정");
   pinMode(PIN_MOTOR_LD, INPUT_PULLUP);
 
-  Serial.println("[stage] 3/4 S/S·CLK 초기화 (정지 / Hi-Z)");
+  Serial.println("[stage] 3/5 S/S·CLK 초기화 (정지 / Hi-Z)");
   odWrite(PIN_MOTOR_SS, true);   // stop
   odWrite(PIN_MOTOR_CLK, true);  // idle high (Hi-Z)
 
-  Serial.println("[stage] 4/4 초기 상태: running=0, waiting for command");
+  Serial.println("[stage] 4/5 센서 DO/AO 입력 설정");
+  pinMode(PIN_SENSOR_DO, INPUT);
+  // AO는 analogRead 시 자동 설정
+  g_lastHit = isSensorHit();
+  g_sensorReady = true;
+  Serial.printf("[stage] 센서 초기값 hit=%d DO=%d AO=%d\n",
+                g_lastHit ? 1 : 0,
+                digitalRead(PIN_SENSOR_DO),
+                analogRead(PIN_SENSOR_AO));
+
+  Serial.println("[stage] 5/5 초기 상태: running=0, waiting for command");
   Serial.println("laserModuleL / LB11876 polygon motor (Ricoh C3502) ready");
   Serial.printf("Default CLK = %lu Hz\n", (unsigned long)CLK_HZ_DEFAULT);
+  Serial.println("Sensor: VCC=3V GND=GND DO=5 AO=A0 — laser on/off → HIT/CLEAR");
   printHelp();
   Serial.println("Wire V=24V(external), G=GND common, then type: start");
   Serial.println("[stage] ===== setup 완료 =====");
@@ -251,6 +321,7 @@ void setup()
 void loop()
 {
   handleSerial();
+  pollSensor();
 
   const bool locked = isLocked();
   if (g_running && locked != g_lastLocked) {
