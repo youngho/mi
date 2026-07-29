@@ -126,8 +126,8 @@ static const int PIN_LASER     = 9;   // NPN 베이스 구동 (HIGH=레이저 ON
 // DO=LOW 를 HIT로 볼지 여부 (보드마다 다름 — 반대로면 false)
 static const bool SENSOR_DO_ACTIVE_LOW = true;
 
-// setup 직후 레이저 기본 상태
-static const bool LASER_DEFAULT_ON = false;
+// setup 직후 레이저 기본 상태 (true면 부팅 시 자동 ON)
+static const bool LASER_DEFAULT_ON = true;
 
 // Sync FALLING 을 0°로 볼지 (보드/옵토에 맞게)
 static const bool SYNC_ACTIVE_FALLING = true;
