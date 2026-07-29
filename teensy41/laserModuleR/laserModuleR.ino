@@ -62,10 +62,40 @@
  *   G (GND)  → Teensy GND + 24V 전원 GND (반드시 공통)
  *   V (VCC)  → 외부 24V DC (모터/FET 전원). Teensy에 연결 금지.
  *
+ * ===========================================================================
+ * 전원 구조 (LM2596 → Teensy VIN / 3.3V / 레이저 / 센서)
+ * ===========================================================================
+ * Teensy 4.1 MCU는 내부 3.3V로 동작한다. 외부 급전 시 5V를 VIN에 넣으면
+ * 보드 내장 레귤레이터가 3.3V로 강압한다.
+ *
+ * USB 포트가 위쪽일 때 우측 상단 핀열:
+ *   1행: VIN  (5V 입력)  ← LM2596 OUT+
+ *   2행: GND             ← LM2596 OUT-
+ *   3행: 3.3V (출력)     ← 레이저/센서 3.3V 급전용
+ *
+ *   [LM2596 (5.0V 세팅)]
+ *      OUT+ (5V) ──► Teensy VIN
+ *      OUT- (GND)──► Teensy GND ──► 센서 GND / 레이저 GND 경로 / 모터 GND(공통)
+ *
+ *   포토다이오드 센서 VCC → Teensy 3.3V 권장
+ *     (5V VCC면 DO가 5V일 수 있음. Teensy 4.1 핀은 5V 비내성!)
+ *
+ * ---------------------------------------------------------------------------
+ * 650nm 라인 레이저 (3V~5V) — Pin 9 + NPN 로우사이드 스위칭 (방법 B)
+ * ---------------------------------------------------------------------------
+ *   레이저 RED  (+) ──► Teensy 3.3V  (또는 LM2596 5V)
+ *   레이저 BLACK(-) ──► NPN Collector (2N2222 등)
+ *   NPN Emitter     ──► GND (공통)
+ *   Teensy Pin 9    ──► 베이스 저항(~1kΩ) ──► NPN Base
+ *
+ *   Pin9 HIGH → 트랜지스터 ON → 레이저 ON
+ *   Pin9 LOW  → 트랜지스터 OFF → 레이저 OFF
+ *   ※ 레이저 GND를 Teensy 핀에 직접 물리지 말 것 (과전류 위험)
+ *
  * ---------------------------------------------------------------------------
  * Photodiode / LM393 센서 · Sync
  * ---------------------------------------------------------------------------
- *   센서: VCC=3V, GND, DO→PIN_SENSOR_DO, AO→PIN_SENSOR_AO
+ *   센서: VCC=3.3V, GND, DO→PIN_SENSOR_DO, AO→PIN_SENSOR_AO
  *   Sync: PIN_SYNC (INPUT_PULLUP). Sync 없으면 `theta2 <deg>` + 수신 θ1 으로 테스트
  * ---------------------------------------------------------------------------
  */
@@ -80,9 +110,11 @@ static const int PIN_MOTOR_SS  = 4;   // S
 static const int PIN_SENSOR_DO = 5;   // 포토다이오드 모듈 DO
 static const int PIN_SENSOR_AO = A0;  // 포토다이오드 모듈 AO (선택)
 static const int PIN_SYNC      = 6;   // 0° Sync 입력
+static const int PIN_LASER     = 9;   // NPN 베이스 구동 (HIGH=레이저 ON)
 
 static const bool SENSOR_DO_ACTIVE_LOW = true;
 static const bool SYNC_ACTIVE_FALLING = true;
+static const bool LASER_DEFAULT_ON = false;
 
 // 한 Sync 주기 동안 스캔하는 광학 각도 범위 [deg]
 static const float SCAN_ANGLE_DEG = 90.0f;
@@ -117,6 +149,7 @@ static bool g_running = false;
 static bool g_lastLocked = false;
 static bool g_lastHit = false;
 static bool g_sensorReady = false;
+static bool g_laserOn = false;
 
 static volatile uint32_t g_syncUs = 0;
 static volatile uint32_t g_periodUs = 0;
@@ -231,6 +264,13 @@ static bool isSensorHit()
 {
   const bool doHigh = digitalRead(PIN_SENSOR_DO) == HIGH;
   return SENSOR_DO_ACTIVE_LOW ? !doHigh : doHigh;
+}
+
+static void setLaser(bool on)
+{
+  digitalWrite(PIN_LASER, on ? HIGH : LOW);
+  g_laserOn = on;
+  Serial.printf("[laser] %s (pin %d)\n", on ? "ON" : "OFF", PIN_LASER);
 }
 
 static bool computeTheta2(float *outDeg)
@@ -410,8 +450,9 @@ static void printHelp()
   Serial.println("  start [hz]      - motor start");
   Serial.println("  stop            - motor stop");
   Serial.println("  clk <hz>        - set clock (100~10000)");
-  Serial.println("  status          - running / lock / θ1 / sync");
+  Serial.println("  status          - running / lock / θ1 / sync / laser");
   Serial.println("  sensor          - print sensor once");
+  Serial.println("  laser on|off    - 650nm 라인 레이저 (Pin9 → NPN)");
   Serial.println("  theta2 <deg>    - 수동 θ2 + 최신 θ1 로 삼각측량 테스트");
   Serial.println("  inject <t1> <t2>- θ1·θ2 수동 삼각측량 (UART 없이)");
   Serial.println("  hid on|off      - USB HID 출력 토글");
@@ -446,7 +487,7 @@ static void handleSerial()
     } else if (lower == "status") {
       Serial.println("[cmd] status 수신");
       Serial.printf("[status] running=%d locked=%d clk=%lu Hz hit=%d "
-                    "sync=%d period=%lu us θ1=%.2f fresh=%d hid=%d\n",
+                    "sync=%d period=%lu us θ1=%.2f fresh=%d hid=%d laser=%d\n",
                     g_running ? 1 : 0,
                     isLocked() ? 1 : 0,
                     (unsigned long)g_clkHz,
@@ -455,13 +496,28 @@ static void handleSerial()
                     (unsigned long)g_periodUs,
                     g_theta1Valid ? g_theta1Deg : -1.0f,
                     isTheta1Fresh() ? 1 : 0,
-                    g_hidEnabled ? 1 : 0);
+                    g_hidEnabled ? 1 : 0,
+                    g_laserOn ? 1 : 0);
     } else if (lower == "sensor") {
       Serial.printf("[sensor] hit=%d DO=%d AO=%d (active_low=%d)\n",
                     isSensorHit() ? 1 : 0,
                     digitalRead(PIN_SENSOR_DO),
                     analogRead(PIN_SENSOR_AO),
                     SENSOR_DO_ACTIVE_LOW ? 1 : 0);
+    } else if (lower.startsWith("laser")) {
+      const int sp = lower.indexOf(' ');
+      if (sp < 0) {
+        Serial.println("[err] usage: laser on|off");
+      } else {
+        const String arg = lower.substring(sp + 1);
+        if (arg == "on") {
+          setLaser(true);
+        } else if (arg == "off") {
+          setLaser(false);
+        } else {
+          Serial.println("[err] usage: laser on|off");
+        }
+      }
     } else if (lower.startsWith("hid")) {
       const int sp = lower.indexOf(' ');
       if (sp < 0) {
@@ -546,35 +602,40 @@ void setup()
 
   Serial.println();
   Serial.println("[stage] ===== setup 시작 (Node B / Right / Master) =====");
-  Serial.println("[stage] 1/6 USB Serial + Serial1 link + Mouse HID");
+  Serial.println("[stage] 1/7 USB Serial + Serial1 link + Mouse HID");
   Serial.printf("[stage]    LINK_BAUD=%lu  RX1=Pin0 ← Slave TX1\n",
                 (unsigned long)LINK_BAUD);
   Serial.printf("[stage]    Screen W=%.0f mm → %dx%d px\n",
                 SCREEN_WIDTH_MM, SCREEN_PX_W, SCREEN_PX_H);
 
-  Serial.println("[stage] 2/6 LD 핀 INPUT_PULLUP 설정");
+  Serial.println("[stage] 2/7 LD 핀 INPUT_PULLUP 설정");
   pinMode(PIN_MOTOR_LD, INPUT_PULLUP);
 
-  Serial.println("[stage] 3/6 S/S·CLK 초기화 (정지 / Hi-Z)");
+  Serial.println("[stage] 3/7 S/S·CLK 초기화 (정지 / Hi-Z)");
   odWrite(PIN_MOTOR_SS, true);
   odWrite(PIN_MOTOR_CLK, true);
 
-  Serial.println("[stage] 4/6 센서 DO/AO 입력 설정");
+  Serial.println("[stage] 4/7 센서 DO/AO 입력 설정");
   pinMode(PIN_SENSOR_DO, INPUT);
   g_lastHit = isSensorHit();
   g_sensorReady = true;
 
-  Serial.println("[stage] 5/6 Sync 인터럽트 설정");
+  Serial.println("[stage] 5/7 Sync 인터럽트 설정");
   pinMode(PIN_SYNC, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_SYNC), syncIsr,
                   SYNC_ACTIVE_FALLING ? FALLING : RISING);
 
-  Serial.println("[stage] 6/6 ready");
+  Serial.println("[stage] 6/7 레이저 Pin9 (NPN) 초기화");
+  pinMode(PIN_LASER, OUTPUT);
+  setLaser(LASER_DEFAULT_ON);
+
+  Serial.println("[stage] 7/7 ready");
   Serial.println("laserModuleR / Node B (Master) ready");
   Serial.println("USB Type must be Keyboard+Mouse+Joystick for HID");
+  Serial.println("Power: LM2596 5V→VIN, GND공통 / Laser: 3.3V→RED, Pin9→NPN→BLACK");
   Serial.println("UART ← Slave: RX1(0)/TX1(1)/GND — expect T1,<cd>,<us>");
   printHelp();
-  Serial.println("Wire V=24V(external), G=GND common, then type: start");
+  Serial.println("Wire V=24V(external), G=GND common, then: laser on / start");
   Serial.println("통신 테스트: Left에서 `theta 48.5` → Right에서 `theta2 52.1`");
   Serial.println("또는 Right만: `inject 48.5 52.1`");
   Serial.println("[stage] ===== setup 완료 =====");
