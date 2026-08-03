@@ -4,15 +4,21 @@ using UnityEngine;
 namespace PinkSoft.Core.Lobby
 {
     /// <summary>
-    /// 로비에서 BDS Calibration 시스템 모드 진입 버튼.
-    /// 4점 교정·발사 테스트는 <see cref="Modes.BdsCalibrationMode"/>에서 수행합니다.
+    /// 레거시 IMGUI 진입점. 시작 화면은 <see cref="StartMenuUI"/>를 사용하세요.
     /// </summary>
+    [System.Obsolete("StartMenuUI로 대체됨")]
     public sealed class LobbyCalibrationUI : MonoBehaviour
     {
         [SerializeField] BdsCalibrationLauncher launcher = null!;
 
         void Awake()
         {
+            if (GetComponent<StartMenuUI>() != null)
+            {
+                enabled = false;
+                return;
+            }
+
             if (launcher == null)
                 launcher = FindAnyObjectByType<BdsCalibrationLauncher>();
         }

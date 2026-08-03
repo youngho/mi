@@ -42,13 +42,5 @@ namespace PinkSoft.Core
             timeLimitSeconds = 600,
             targetScore = 0
         };
-
-        void OnGUI()
-        {
-            GUILayout.BeginArea(new Rect(Screen.width - 220, 10, 210, 60));
-            if (GUILayout.Button("BDS 센서 설정"))
-                LaunchForCurrentUser();
-            GUILayout.EndArea();
-        }
     }
 }
