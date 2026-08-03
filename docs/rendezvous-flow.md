@@ -31,7 +31,7 @@ Boot
         │         ↓
         ├─ Station — 미션 목록 조회 → 선택
         │
-        │  ※ 우측 상단 [BDS Check] — 접선·Station 어디서나
+        ├─ [BDS Check] → BdsCheck 씬 (Teensy HID · 1920×1080) → Rendezvous 복귀
         └─ Mission 수행 → Station 복귀
 ```
 
@@ -92,8 +92,19 @@ Station·미션 UI는 숨긴다. 이 화면에서만 파티를 구성한다.
 |------|------|
 | 표시명 | **BDS Check** (+ 아이콘) |
 | 위치 | 우측 상단 |
-| 기능 | BDS 4점 교정·발사 테스트 |
-| 권한 | 접선·Station 모두. 파티 없어도 시스템 기본 프로필로 실행 가능 |
+| 역할 | **Teensy R USB HID** 통과 좌표 검증 (5포인트). 전용 씬 `BdsCheck` |
+| 해상도 | Game 뷰 / 플레이어 **1920×1080** (`laserModuleR` `SCREEN_PX`와 동일) |
+| 권한 | 접선·Station 모두. 파티 없어도 실행 가능 |
+| 분리 | Rendezvous에 검증 로직 없음. 상세: [docs/bds-check.md](bds-check.md)
+
+#### BDS Check 절차 (현재 범위)
+
+1. Rendezvous → `BdsCheck` 씬 로드
+2. Teensy R `Mouse.moveTo`+`click` → Unity `TouchInputSource` → `InputHit`
+3. 화면 **5개 포인트**와 실제 좌표 비교 (1920×1080 기준)
+4. 요약 후 **Rendezvous** 복귀
+
+> Homography 재교정·LiDAR UART는 이 씬 범위 밖이다.
 
 ## 단계 3 — 미션 수행
 
@@ -105,11 +116,12 @@ Station·미션 UI는 숨긴다. 이 화면에서만 파티를 구성한다.
 
 | 경로 | 역할 |
 |------|------|
-| `Assets/Scenes/Rendezvous.unity` | 접선 / Station / BDS Check |
+| `Assets/Scenes/Rendezvous.unity` | 접선 / Station |
+| `Assets/Scenes/BdsCheck.unity` | BDS Check 전용 |
 | `Assets/Core/Runtime/AgentSession.cs` | 최대 4인 파티, Station 진입 플래그 |
-| `Assets/Core/Runtime/Lobby/StartMenuUI.cs` | 등록 ↔ Station 진입 분리 |
+| `Assets/Core/Runtime/Lobby/StartMenuUI.cs` | 등록 ↔ Station 진입 / BDS Check 씬 전환 |
 | `Assets/Core/Runtime/PinkSoftApiClient.cs` | login / catalog / complete |
-| `Assets/Core/Runtime/BdsCalibrationLauncher.cs` | BDS Check |
+| `Assets/Core/Runtime/BdsCheck/BdsCheckSceneController.cs` | 5포인트 통과 검증 |
 
 ## 비범위
 

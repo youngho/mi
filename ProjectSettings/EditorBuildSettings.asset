@@ -11,4 +11,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Rendezvous.unity
     guid: 26513ded9a4306a7f884d69d58ef4864
+  - enabled: 1
+    path: Assets/Scenes/BdsCheck.unity
+    guid: 8ffdb46ea405544528805065d2607c71
   m_configObjects: {}

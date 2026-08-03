@@ -10,7 +10,7 @@
 | A-1 | 시리얼 스트리밍 | `ILidarParser`, `LidarHighSpeedReader` | 1~2주 |
 | A-2 | 포인트클라우드 뷰어 | `LidarPointCloudViewer`, 녹화/재생 | 1주 |
 | A-3 | 탄환 필터 | `LidarBulletFilter`, 통계 리포트 | 2~4주 |
-| A-4 | 4점 교정 | `HomographyCalculator`, `CalibrationManager` | 1~2주 |
+| A-4 | BDS Check · Homography | Teensy HID→`BdsCheck` 씬(1920×1080) + Homography(추후) | 1~2주 |
 | A-5 | 게임 프로토타입 | `IInputSource`, `TargetShootingPrototype` | 1~2주 |
 
 **Track A 합계:** 6~10주

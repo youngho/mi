@@ -37,6 +37,8 @@
  *    - Slave로부터 θ1 실시간 수신
  *    - θ1, θ2, 스크린 폭 W 로 (X,Y) 삼각측량
  *    - USB HID Mouse.moveTo / click 으로 PC에 전달
+ *      → Unity BDS Check (`BdsCheck` 씬 / TouchInputSource)가 수신·검증
+ *      → Game 뷰·플레이어 해상도는 SCREEN_PX(1920×1080)과 맞출 것
  *
  * 3) 보드 간 UART 배선 (Serial1)
  *    Teensy #1 TX1 (Pin 1) ──────────────► Teensy #2 RX1 (Pin 0)
@@ -136,7 +138,7 @@ static const uint32_t THETA1_FRESH_US = 50000;  // 50 ms
 static const float SCREEN_WIDTH_MM  = 2000.0f;  // W
 static const float SCREEN_HEIGHT_MM = 1125.0f;
 
-// PC 디스플레이 해상도 (HID absolute)
+// PC / Unity Game 뷰 해상도 (HID absolute) — BdsCheck ExpectedScreen* 와 동일해야 함
 static const int SCREEN_PX_W = 1920;
 static const int SCREEN_PX_H = 1080;
 
@@ -343,11 +345,13 @@ static void emitHid(float xMm, float yMm)
     return;
   }
 
+  // Unity Screen: x=0 왼쪽, y=0 하단. yMm=0을 화면 하단으로 보고 뒤집음.
   int px = (int)lroundf((xMm / SCREEN_WIDTH_MM) * (float)(SCREEN_PX_W - 1));
   int py = (int)lroundf((1.0f - (yMm / SCREEN_HEIGHT_MM)) * (float)(SCREEN_PX_H - 1));
   px = constrain(px, 0, SCREEN_PX_W - 1);
   py = constrain(py, 0, SCREEN_PX_H - 1);
 
+  // Unity BDS Check: TouchInputSource가 leftButton + position 으로 InputHit 생성
   Mouse.moveTo(px, py);
   Serial.printf("[hid] moveTo (%d,%d) px  from (%.1f,%.1f) mm\n", px, py, xMm, yMm);
 

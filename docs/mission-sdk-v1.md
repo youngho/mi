@@ -174,6 +174,7 @@ public class MissionConfig
 - [ ] `OnError`로 복구 불가 오류 전달
 - [ ] 메타데이터 JSON + Addressables 빌드 산출물 제출
 
-## 교정
+## 교정 · BDS Check
 
-4점 Homography 교정·발사 테스트는 **로비** `BdsCalibrationMode` 시스템 모드에서 수행. 미션은 교정 완료된 `InputHit`만 수신합니다.
+- **BDS Check (현재):** 전용 씬 `BdsCheck` — Teensy R USB HID → `TouchInputSource` → 5포인트 매칭 (1920×1080). 상세: [bds-check.md](bds-check.md)
+- **Homography 재교정:** Check와 분리(추후). 미션은 교정된 `InputHit`만 수신합니다.

@@ -44,7 +44,7 @@ BdsService (Core 상주, DontDestroyOnLoad)
 | 입력 계약 | `InputHit`, `IMissionInput`을 MissionSDK로 이동. 외부 미션은 BDS 어셈블리 미참조 |
 | 미션 초기화 | `InitializeMission(user, MissionContext)` — Core가 `Input`·`Config` 주입 |
 | Core 서비스 | `BdsService` (LiDAR·필터·교정), `MissionInputRouter` (입력 라우팅) |
-| 교정·센서 테스트 | `BdsCalibrationMode` — PMS 시스템 모드 (4점 교정 + 발사 테스트) |
+| BDS Check | 전용 씬 `BdsCheck` — Teensy R HID 5포인트 검증 ([docs/bds-check.md](docs/bds-check.md)) |
 | 내장 미션 | `TargetPracticeMission`, `TimedEscapeMission`, `ComboShootMission` — Context.Input 구독 |
 | 렌더 파이프라인 | **URP 17.5** — Built-In RP에서 전환 (`Assets/Settings/URP_Pipeline.asset`) |
 | 백엔드 | `POST /auth/login`, `GET /missions/catalog`, `POST /mission/complete`, `GET /ranking/:id` |
@@ -57,10 +57,10 @@ BdsService (Core 상주, DontDestroyOnLoad)
 | `Assets/Core/Runtime/BdsService.cs` | BDS lifecycle 싱글톤 |
 | `Assets/Core/Runtime/MissionInputRouter.cs` | 활성 미션 입력 라우터 |
 | `Assets/Core/Runtime/MissionSessionController.cs` | 미션 세션·점수 브리지 |
-| `Assets/Core/Runtime/Modes/BdsCalibrationMode.cs` | BDS 교정·발사 테스트 시스템 모드 |
+| `Assets/Core/Runtime/BdsCheck/BdsCheckSceneController.cs` | BDS Check — Teensy HID 5포인트 검증 (1920×1080) |
+| `Assets/BDS/Runtime/Input/TouchInputSource.cs` | Teensy USB HID 마우스 → `InputHit` |
 | `Assets/Core/Runtime/AgentSession.cs` | 에이전트 신원(클리어런스) 세션 |
-| `Assets/Core/Runtime/Lobby/StartMenuUI.cs` | 신원 확인 → Station UI |
-| `Assets/Core/Runtime/BdsCalibrationLauncher.cs` | 로비 → 센서 설정 모드 진입 |
+| `Assets/Core/Runtime/Lobby/StartMenuUI.cs` | 신원 확인 → Station UI / BdsCheck 씬 전환 |
 | `Assets/BDS/Runtime/` | LiDAR 파서·필터 (Core 전용, 미션 미포함) |
 | `Assets/Settings/URP_Pipeline.asset` | URP 렌더 파이프라인 (Graphics·Quality 기본값) |
 | `Assets/Settings/URP_Renderer.asset` | URP Forward Renderer |
@@ -70,10 +70,11 @@ BdsService (Core 상주, DontDestroyOnLoad)
 
 1. **Boot** — `BdsService`, `MissionInputRouter`, `MissionSessionController` · Main Camera에 `UniversalAdditionalCameraData`
 2. **Rendezvous** — 최대 4명 Clearance/Nobody 등록 → **Station 진입** 버튼으로만 Station
-3. **Mission** — 선택 미션 수행만 (BDS/교정 UI 없음) · URP 셰이더·머티리얼 사용
+3. **BdsCheck** — Teensy R USB HID 통과 좌표 5포인트 검증 (Game 뷰 **1920×1080**)
+4. **Mission** — 선택 미션 수행만 (BDS/교정 UI 없음) · URP 셰이더·머티리얼 사용
 
-**흐름:** 접선에서 파티 구성(자동 Station 이동 없음) → Station 진입 → 미션 목록 조회·선택.  
-상세: [docs/rendezvous-flow.md](docs/rendezvous-flow.md)
+**흐름:** 접선에서 파티 구성 → Station 진입 → 미션 목록. BDS Check는 Teensy HID 검증 전용 씬.  
+상세: [docs/rendezvous-flow.md](docs/rendezvous-flow.md) · [docs/bds-check.md](docs/bds-check.md)
 
 상세 스펙: [Mission SDK v1](docs/mission-sdk-v1.md) · Unity 가이드: [unity/PinkSoft/README.md](unity/PinkSoft/README.md) (→ 레포 루트에서 Hub로 열기)
 
@@ -96,7 +97,7 @@ BdsService (Core 상주, DontDestroyOnLoad)
 | - 유저 세션 및 데이터 관리 (AgentSession / UserData)                     |
 | - BDS (LiDAR·필터·교정) — BdsService 상주                                |
 | - MissionInputRouter — 활성 미션에 InputHit 라우팅                       |
-| - Station UI / 미션 선택 / 센서 설정                                     |
+| - Station UI / 미션 선택 / BDS Check                                     |
 | - 보안 및 백엔드 API 통신 / 글로벌 랭킹 및 데이터 저장 (MariaDB)         |
 | - 미션은 외부 실행파일 연동 (Addressables 미사용)                        |
 +--------------------------------------------------------------------------+
@@ -176,7 +177,7 @@ namespace PinkSoft.MissionSDK
 - 콜사인 **신원 확인** 또는 **Nobody 추가**는 파티에 슬롯만 채운다. **Station으로 자동 이동하지 않는다.**
 - **Nobody:** 계정 없는 첫 플레이 친구가 쓰는 Guest 콜사인. 시스템 기본값만 사용.
 - **Station 진입** 버튼이 별도로 있으며, 파티 1명 이상일 때만 Station으로 전환한다.
-- 우측 상단 **BDS Check**는 접선·Station 공통.
+- 우측 상단 **BDS Check**는 접선·Station 공통 — Teensy R HID 좌표를 1920×1080 기준으로 검증 ([docs/bds-check.md](docs/bds-check.md)).
 
 ### 단계 1: Station — 미션 목록 조회 · 선택
 
@@ -213,7 +214,7 @@ BDS는 **PMS Core의 하위시스템**으로 상주합니다 (`BdsService`). LiD
 [BdsInputSource] ──(InputHit)──> [MissionInputRouter] ──> [활성 미션 IMissionController]
 ```
 
-- **교정·센서 테스트:** 로비에서 `BdsCalibrationMode` 시스템 모드 (4점 Homography + 발사 테스트)
+- **BDS Check:** 전용 씬 `BdsCheck` — `laserModuleR` USB HID(`Mouse.moveTo`/`click`) → `TouchInputSource` → 5포인트 매칭. Game 뷰 **1920×1080**.
 - **모바일:** Core가 `TouchInputSource`로 교체 — 미션 코드 변경 없음
 
 ```
@@ -273,8 +274,9 @@ BDS는 **PMS Core의 하위시스템**으로 상주합니다 (`BdsService`). LiD
    - 라이다가 뿌려주는 각도/거리 데이터를 유니티 화면에 2D 점(Point)들로 실시간 시각화하여 센서 앞을 무언가 지나갈 때 점이 튀는 현상을 확인합니다.
 3. **Phase 3: 초고속 탄환 필터 알고리즘 구현 (2주차)**
    - 실제 비비탄을 발사하여 1프레임 미만으로 찍히는 점의 거리/강도(Confidence) 변화를 프로파일링하고, 팅겨 나간 후 천의 흔들림(지속 노이즈)을 지워버리는 컷오프(Cut-off) 필터를 적용합니다.
-4. **Phase 4: 4점 교정(Calibration) 시스템 구축 (2주차)**
-   - `BdsCalibrationMode`에서 프로젝터 화면 모서리 4점 Homography + 발사 테스트
+4. **Phase 4: BDS Check · 교정 (2주차)**
+   - **BDS Check 씬:** Teensy R HID → 5포인트 매칭 (`docs/bds-check.md`, 1920×1080)
+   - Homography 4점 재교정은 Check와 분리해 추후/별도 도구로
 5. **Phase 5: 유니티 게임 콘텐츠 연동 (3주차)**
    - `MissionInputRouter` → 미션 `ReportEvent` → Core `ScoreEngine` 파이프라인 연동 (구현: `MissionSessionController`, 내장 미션 3종)
 

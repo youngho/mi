@@ -262,7 +262,6 @@ namespace PinkSoft.EditorTools
             }
             so.FindProperty("apiClient").objectReferenceValue = api;
             so.FindProperty("allowOfflineClearance").boolValue = true;
-            so.FindProperty("calibrationLauncher").objectReferenceValue = root.GetComponent<BdsCalibrationLauncher>();
             so.FindProperty("selectMissionButton").objectReferenceValue = missionBtn;
             so.FindProperty("quitButton").objectReferenceValue = quitBtn;
             so.FindProperty("logoutButton").objectReferenceValue = logoutBtn;
@@ -271,15 +270,15 @@ namespace PinkSoft.EditorTools
             so.FindProperty("statusText").objectReferenceValue = statusText;
             so.FindProperty("bdsCheckButton").objectReferenceValue = bdsBtn;
             so.FindProperty("bdsCheckRoot").objectReferenceValue = bdsRoot.gameObject;
+            so.FindProperty("bdsCheckSceneName").stringValue = "BdsCheck";
             so.ApplyModifiedPropertiesWithoutUndo();
 
-            var legacy = root.GetComponent<LobbyCalibrationUI>();
-            if (legacy != null)
-                legacy.enabled = false;
+            // BDS Check는 전용 씬 — Rendezvous 루트의 구 교정 컴포넌트/누락 스크립트 제거
+            GameObjectUtility.RemoveMonoBehavioursWithMissingScript(root);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
-            Debug.Log("Rendezvous Start UI rebuilt (Party ≤4 → Station 진입).");
+            Debug.Log("Rendezvous Start UI rebuilt (Party ≤4 → Station 진입). BDS Check → BdsCheck 씬.");
         }
 
         static void DestroyIfExists(string name)

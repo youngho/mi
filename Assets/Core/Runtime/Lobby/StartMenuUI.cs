@@ -1,6 +1,7 @@
 using PinkSoft.Core;
 using PinkSoft.MissionSDK;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace PinkSoft.Core.Lobby
@@ -8,6 +9,7 @@ namespace PinkSoft.Core.Lobby
     /// <summary>
     /// 접선(Clearance)에서 최대 4명 등록 → 별도 버튼으로 Station 진입.
     /// Nobody는 Guest 콜사인으로 파티에 추가만 하며, Station으로 자동 전환하지 않는다.
+    /// BDS Check는 전용 씬으로 전환한다 (이 UI에서 검증 로직을 갖지 않음).
     /// </summary>
     public sealed class StartMenuUI : MonoBehaviour
     {
@@ -28,7 +30,6 @@ namespace PinkSoft.Core.Lobby
         [SerializeField] bool allowOfflineClearance = true;
 
         [Header("Station")]
-        [SerializeField] BdsCalibrationLauncher calibrationLauncher = null!;
         [SerializeField] Button selectMissionButton = null!;
         [SerializeField] Button quitButton = null!;
         [SerializeField] Button logoutButton = null!;
@@ -40,6 +41,7 @@ namespace PinkSoft.Core.Lobby
         [Header("System — always visible")]
         [SerializeField] Button bdsCheckButton = null!;
         [SerializeField] GameObject bdsCheckRoot = null!;
+        [SerializeField] string bdsCheckSceneName = "BdsCheck";
 
         bool _busy;
 
@@ -47,8 +49,6 @@ namespace PinkSoft.Core.Lobby
         {
             EnsureAgentSession();
 
-            if (calibrationLauncher == null)
-                calibrationLauncher = FindAnyObjectByType<BdsCalibrationLauncher>();
             if (apiClient == null)
                 apiClient = FindAnyObjectByType<PinkSoftApiClient>();
 
@@ -344,20 +344,13 @@ namespace PinkSoft.Core.Lobby
 
         public void OnOpenBdsCheck()
         {
-            if (calibrationLauncher == null)
+            if (string.IsNullOrWhiteSpace(bdsCheckSceneName))
             {
-                ShowStatus("BdsCalibrationLauncher를 찾을 수 없습니다.");
+                ShowStatus("BDS Check 씬 이름이 비어 있습니다.");
                 return;
             }
 
-            if (stationPanel != null)
-                stationPanel.SetActive(false);
-            if (identityPanel != null)
-                identityPanel.SetActive(false);
-            if (bdsCheckRoot != null)
-                bdsCheckRoot.SetActive(false);
-
-            calibrationLauncher.LaunchForCurrentUser();
+            SceneManager.LoadScene(bdsCheckSceneName);
         }
 
         public void OnLogout()

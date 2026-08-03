@@ -128,9 +128,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 100001}
-  - component: {fileID: 100002}
-  - component: {fileID: 100003}
-  - component: {fileID: 100004}
   - component: {fileID: 100005}
   - component: {fileID: 100006}
   m_Layer: 0
@@ -155,48 +152,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &100002
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 100000}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 81c5fe88e513f7fc9a4fdff980ff1587, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  testShotsGoal: 10
-  shotTestDurationSec: 120
-  showHitMarkers: 1
---- !u!114 &100003
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 100000}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ef1a549cd0b6cb097b9812e8cb5d2440, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  calibrationMode: {fileID: 100002}
-  sessionController: {fileID: 0}
---- !u!114 &100004
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 100000}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 403ebcbd22c4b535d3da766f4f553b5c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  launcher: {fileID: 100003}
 --- !u!114 &100005
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -233,7 +188,6 @@ MonoBehaviour:
   - {fileID: 1739802370}
   apiClient: {fileID: 100006}
   allowOfflineClearance: 1
-  calibrationLauncher: {fileID: 100003}
   selectMissionButton: {fileID: 937491359}
   quitButton: {fileID: 421522270}
   logoutButton: {fileID: 804885589}
@@ -243,6 +197,7 @@ MonoBehaviour:
   hideCursor: 0
   bdsCheckButton: {fileID: 1046085604}
   bdsCheckRoot: {fileID: 2082280947}
+  bdsCheckSceneName: BdsCheck
 --- !u!114 &100006
 MonoBehaviour:
   m_ObjectHideFlags: 0

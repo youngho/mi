@@ -115,7 +115,11 @@ namespace PinkSoft.Core
             _calibration.SaveToFile(path);
         }
 
-        /// <summary>PMS BDS Calibration 시스템 모드 진입.</summary>
+        /// <summary>
+        /// BDS Check 모드 진입.
+        /// Teensy R USB HID 마우스(TouchInputSource)를 ActiveInput으로 쓴다.
+        /// (LiDAR UART 경로는 Check와 분리 — 추후)
+        /// </summary>
         public void EnterCalibrationMode()
         {
             if (_calibrationModeActive)
@@ -125,16 +129,22 @@ namespace PinkSoft.Core
             _savedInput = ActiveInput;
             ActiveInput?.Disable();
 
-            if (!TryConnectReader() && string.IsNullOrWhiteSpace(serialPortName))
-                Debug.Log("BdsService: UART 미설정 — 터치/디버그로 교정·테스트 가능");
+            // 정식: laserModuleR → HID moveTo/click → TouchInputSource
+            if (_touchInput != null && _touchInput.IsAvailable)
+            {
+                ActiveInput = _touchInput;
+                Debug.Log("BdsService: BDS Check 입력 = HID/Touch (Teensy R 또는 로컬 마우스)");
+            }
+            else
+            {
+                ActiveInput = _debugInput!;
+                Debug.LogWarning("BdsService: HID/Touch 없음 — Debug 입력으로 BDS Check");
+            }
 
-            ActiveInput = _bdsInput != null && (_reader != null || _bdsInput.IsAvailable)
-                ? (IInputSource)_bdsInput
-                : (IInputSource?)_touchInput ?? _debugInput!;
             ActiveInput?.Enable();
         }
 
-        /// <summary>BDS Calibration 모드 종료 후 일반 입력 소스로 복귀.</summary>
+        /// <summary>BDS Check 종료 후 일반 입력 소스로 복귀.</summary>
         public void ExitCalibrationMode()
         {
             if (!_calibrationModeActive)
