@@ -26,7 +26,15 @@ namespace PinkSoft.Core
                 return;
             }
 
-            sessionController.StartMission(calibrationMode, BuildGuestUser(), BuildCalibrationConfig());
+            sessionController.StartMission(calibrationMode, ResolveUser(), BuildCalibrationConfig());
+        }
+
+        public static RuntimeUserData ResolveUser()
+        {
+            if (AgentSession.Instance != null && AgentSession.Instance.IsCleared && AgentSession.Instance.User != null)
+                return AgentSession.Instance.User;
+
+            return BuildGuestUser();
         }
 
         public static RuntimeUserData BuildGuestUser() => new()

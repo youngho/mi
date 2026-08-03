@@ -9,6 +9,6 @@ EditorBuildSettings:
     path: Assets/Scenes/Boot.unity
     guid: a2e43405d68a0265c5ea433996ddcf8c
   - enabled: 1
-    path: Assets/Scenes/Lobby.unity
+    path: Assets/Scenes/Rendezvous.unity
     guid: 26513ded9a4306a7f884d69d58ef4864
   m_configObjects: {}

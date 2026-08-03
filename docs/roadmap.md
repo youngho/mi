@@ -19,11 +19,11 @@
 
 | 단계 | 내용 | 산출물 | 예상 |
 |------|------|--------|------|
-| B-1 | Unity 골격 | Boot/Lobby/Mission 씬 구조 | 3~5일 |
+| B-1 | Unity 골격 | Boot/Rendezvous/Mission 씬 구조 | 3~5일 |
 | B-2 | MissionSDK v1 | `IMissionController` 확장, 문서 | 1주 |
 | B-3 | 내장 미션 + 점수 | `ScoreEngine`, 미션 3종 | 2~3주 |
-| B-4 | 로비 UI | 카탈로그, 썸네일, 진입 조건 | 1~2주 |
-| B-5 | 동적 로드 | `MissionBundleLoader`, Addressables | 2~3주 |
+| B-4 | Rendezvous UI | Clearance → Station에서 미션 목록 조회·선택 | 1~2주 |
+| B-5 | 미션 실행 연동 | 외부 Unity 실행파일 기동·결과 회수 | 2~3주 |
 | B-6 | 백엔드 MVP | REST API, MariaDB | 2~4주 |
 | B-7 | 안티치트 | 이벤트 로그, 서버 검증 | 1~2주 |
 | B-8 | SDK 배포 | UPM 패키지, 템플릿 | 2~3주 |

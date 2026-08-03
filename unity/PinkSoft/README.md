@@ -7,8 +7,12 @@ Unity Hub → **Open** → 이 레포(`mi`) 폴더를 선택하세요.
 ## 빠른 시작
 
 1. **Boot** 씬 (`Assets/Scenes/Boot.unity`) 열기 → Play
-2. Boot에서 Core 초기화 후 **Lobby** 자동 로드
-3. Lobby에서 **BDS 센서 설정** → 교정·발사 테스트
+2. Boot에서 Core 초기화 후 **Rendezvous** 자동 로드
+3. **Clearance** (콜사인 신원 확인)
+4. **Station**에서 미션 목록 조회·선택 (또는 BDS 센서 설정)
+
+**흐름:** Rendezvous → 신원 확인 → Station → 미션 목록 조회·선택.  
+상세: [Rendezvous UX](../../docs/rendezvous-flow.md)
 
 에디터: Unity **6000.5 LTS** (현재 프로젝트 기준). `ProjectSettings/ProjectVersion.txt` 참고.
 

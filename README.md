@@ -1,6 +1,6 @@
 # PinkSoft Mission System (PMS) 기획서
 
-> **구현 산출물:** [개발 로드맵](docs/roadmap.md) · [BDS Go/No-Go](docs/bds-gonogo-checklist.md) · [Mission SDK v1](docs/mission-sdk-v1.md) · [API 명세](docs/api-openapi.yaml) · [Addressables 결정](docs/decisions/addressables.md)
+> **구현 산출물:** [개발 로드맵](docs/roadmap.md) · [BDS Go/No-Go](docs/bds-gonogo-checklist.md) · [Mission SDK v1](docs/mission-sdk-v1.md) · [API 명세](docs/api-openapi.yaml) · [Rendezvous UX 흐름](docs/rendezvous-flow.md) · [Addressables 결정](docs/decisions/addressables.md)
 
 ## 프로젝트 구조
 
@@ -58,8 +58,9 @@ BdsService (Core 상주, DontDestroyOnLoad)
 | `Assets/Core/Runtime/MissionInputRouter.cs` | 활성 미션 입력 라우터 |
 | `Assets/Core/Runtime/MissionSessionController.cs` | 미션 세션·점수 브리지 |
 | `Assets/Core/Runtime/Modes/BdsCalibrationMode.cs` | BDS 교정·발사 테스트 시스템 모드 |
+| `Assets/Core/Runtime/AgentSession.cs` | 에이전트 신원(클리어런스) 세션 |
+| `Assets/Core/Runtime/Lobby/StartMenuUI.cs` | 신원 확인 → Station UI |
 | `Assets/Core/Runtime/BdsCalibrationLauncher.cs` | 로비 → 센서 설정 모드 진입 |
-| `Assets/Core/Runtime/Lobby/LobbyCalibrationUI.cs` | 로비 진입 버튼 |
 | `Assets/BDS/Runtime/` | LiDAR 파서·필터 (Core 전용, 미션 미포함) |
 | `Assets/Settings/URP_Pipeline.asset` | URP 렌더 파이프라인 (Graphics·Quality 기본값) |
 | `Assets/Settings/URP_Renderer.asset` | URP Forward Renderer |
@@ -68,8 +69,11 @@ BdsService (Core 상주, DontDestroyOnLoad)
 ### 씬 구성 권장
 
 1. **Boot** — `BdsService`, `MissionInputRouter`, `MissionSessionController` · Main Camera에 `UniversalAdditionalCameraData`
-2. **Lobby** — `BdsCalibrationLauncher`, 미션 카탈로그
-3. **Mission** — 번들 미션만 배치 (BDS/교정 UI 없음) · URP 셰이더·머티리얼 사용
+2. **Rendezvous** — Clearance(신원 확인) → Station(미션 목록 조회·선택, 센서 설정)
+3. **Mission** — 선택 미션 수행만 (BDS/교정 UI 없음) · URP 셰이더·머티리얼 사용
+
+**흐름:** Rendezvous에서 신원 확인 후 Station에서 미션 목록을 조회·선택한다.  
+상세: [docs/rendezvous-flow.md](docs/rendezvous-flow.md)
 
 상세 스펙: [Mission SDK v1](docs/mission-sdk-v1.md) · Unity 가이드: [unity/PinkSoft/README.md](unity/PinkSoft/README.md) (→ 레포 루트에서 Hub로 열기)
 
@@ -88,12 +92,13 @@ BdsService (Core 상주, DontDestroyOnLoad)
 ```
 +--------------------------------------------------------------------------+
 | PinkSoft Core (메인 게임)                                                |
-| - 유저 세션 및 데이터 관리 (UserData)                                    |
+| - 에이전트 Clearance → Station에서 미션 목록 조회·선택                   |
+| - 유저 세션 및 데이터 관리 (AgentSession / UserData)                     |
 | - BDS (LiDAR·필터·교정) — BdsService 상주                                |
 | - MissionInputRouter — 활성 미션에 InputHit 라우팅                       |
-| - 중앙 로비 UI / 미션 브라우저 및 스크롤 뷰                             |
+| - Station UI / 미션 선택 / 센서 설정                                     |
 | - 보안 및 백엔드 API 통신 / 글로벌 랭킹 및 데이터 저장 (MariaDB)         |
-| - Addressables 미션 패키지 동적 로더                                     |
+| - 미션은 외부 실행파일 연동 (Addressables 미사용)                        |
 +--------------------------------------------------------------------------+
           │
 (공통 Interface & API 계약)
@@ -101,7 +106,7 @@ BdsService (Core 상주, DontDestroyOnLoad)
           ▼
 +--------------------------------------------------------------------------+
 | Dynamic Mission Modules (외부 미션)                                      |
-| - 독립된 프리팹(Prefab) 또는 Addressables 미션 패키지                    |
+| - 독립 실행파일 또는 내장 미션 모듈                                      |
 | - MissionContext.Input(IMissionInput)으로 적중 좌표 수신                 |
 | - Raycast 판정 후 ReportEvent — BDS/LiDAR 코드 미포함                    |
 | - IMissionController 표준 규격 준수                                      |
@@ -163,20 +168,31 @@ namespace PinkSoft.MissionSDK
 
 ## 3. UI/UX 화면 흐름 기획
 
-### 단계 1: 미션 로비 (Mission Browser)
+> **핵심:** Rendezvous에서 신원 확인 → Station에서 미션 목록 조회·선택 → 미션 수행.  
+> 상세: [docs/rendezvous-flow.md](docs/rendezvous-flow.md)
 
-- **스크린 골프 코스 선택 방식 구현:** 카테고리별 탭(공식 미션, 커뮤니티 미션 등)과 가로/세로 스크롤 뷰를 통해 미션 카드 형태로 리스트업합니다.
-- **비동기 썸네일 로딩:** 텍스트 메타데이터를 먼저 로드하고, 화면에 보이는 미션의 썸네일(Sprite)만 어드레서블을 통해 동적 로드하여 로비 성능을 극대화합니다.
+### 단계 0: Rendezvous · Clearance (신원 확인) — 필수 게이트
+
+- 접선 씬(`Rendezvous`)에 들어오면 **먼저** Agent Clearance만 표시한다.
+- 콜사인 입력 후 `POST /auth/login`으로 신원 확인. 실패 시 Station에 진입하지 않는다.
+- 성공 시 `AgentSession`에 `RuntimeUserData` 저장. 개발용 오프라인 클리어런스 허용 가능.
+
+### 단계 1: Station — 미션 목록 조회 · 선택
+
+- Clearance 후에만 진입한다.
+- Station에서 **미션 목록을 조회**하고, 목록에서 **미션을 선택**한다.
+- 부가: BDS 센서 설정, 에이전트/스테이션 상태 패널, 클리어런스 해제, 종료.
+- Addressables 썸네일 로더는 사용하지 않는다.
 
 ### 단계 2: 상세 정보 및 옵션 세팅 팝업
 
-- 미션을 클릭하면 상세 레이어가 팝업됩니다.
-- 사용자는 게임 진입 전 환경 옵션(예: 난이도 조절, 특수 환경 요소)을 세팅할 수 있으며, 이 설정값은 MissionConfig에 담겨 미션 씬으로 주입됩니다.
+- 목록에서 미션을 고르면 상세 레이어가 팝업된다.
+- 난이도 등 옵션은 `MissionConfig`에 담겨 미션으로 주입된다.
 
-### 단계 3: 비동기 로딩 및 씬 진입
+### 단계 3: 미션 실행 및 Station 복귀
 
-- '시작' 버튼 클릭 시, 해당 미션의 .bundle 파일이 로컬 캐시에 있는지 확인 후 다운로드 또는 로드를 진행합니다.
-- 로딩 중에는 미션의 힌트 정보 및 썸네일을 표시합니다.
+- 선택한 미션 실행파일(또는 내장 미션)을 기동한다.
+- 종료 후 점수를 Core/백엔드에 보고하고 **Station**으로 돌아와 다시 목록에서 고른다.
 
 ## 4. 사용자 데이터 및 점수 관리 (Security & Anti-Cheat)
 

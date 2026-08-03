@@ -213,7 +213,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0ebf632b45b5fcb81d761956e1e6f868, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  lobbySceneName: Lobby
+  rendezvousSceneName: Rendezvous
 --- !u!1 &200000
 GameObject:
   m_ObjectHideFlags: 0
