@@ -64,20 +64,16 @@ namespace PinkSoft.EditorTools
             identity.raycastTarget = false;
             Stretch(identity.rectTransform);
 
-            var idBrand = CreateText(identity.transform, "Brand", "PinkSoft", 64, TextPrimary, FontStyle.Bold);
-            Place(idBrand.rectTransform, 0.08f, 0.72f, 0.7f, 0.86f);
-            idBrand.alignment = TextAnchor.LowerLeft;
-
             var idTitle = CreateText(identity.transform, "ClearanceTitle", "AGENT CLEARANCE", 34, Accent, FontStyle.Bold);
-            Place(idTitle.rectTransform, 0.08f, 0.64f, 0.7f, 0.72f);
+            Place(idTitle.rectTransform, 0.08f, 0.88f, 0.55f, 0.96f);
             idTitle.alignment = TextAnchor.MiddleLeft;
 
-            var idSub = CreateText(identity.transform, "ClearanceSub", "신원 확인 후 스테이션에 진입합니다.", 22, TextMuted, FontStyle.Normal);
-            Place(idSub.rectTransform, 0.08f, 0.58f, 0.7f, 0.64f);
+            var idSub = CreateText(identity.transform, "ClearanceSub", "최대 4명까지 접선 후 Station에 진입합니다.", 20, TextMuted, FontStyle.Normal);
+            Place(idSub.rectTransform, 0.08f, 0.82f, 0.55f, 0.88f);
             idSub.alignment = TextAnchor.MiddleLeft;
 
             var fieldBg = CreateImage(identity.transform, "CallsignField", FieldFace);
-            Place(fieldBg.rectTransform, 0.08f, 0.44f, 0.48f, 0.54f);
+            Place(fieldBg.rectTransform, 0.31f, 0.40f, 0.65f, 0.48f);
             var input = fieldBg.gameObject.AddComponent<InputField>();
             var placeholder = CreateText(fieldBg.transform, "Placeholder", "콜사인 입력", 26, TextMuted, FontStyle.Italic);
             Stretch(placeholder.rectTransform);
@@ -91,11 +87,66 @@ namespace PinkSoft.EditorTools
             input.characterLimit = 24;
 
             var confirmBtn = CreateButton(identity.transform, "신원 확인", Accent);
-            Place(confirmBtn.GetComponent<RectTransform>(), 0.08f, 0.32f, 0.36f, 0.42f);
+            Place(confirmBtn.GetComponent<RectTransform>(), 0.31f, 0.30f, 0.51f, 0.38f);
             Object.DestroyImmediate(confirmBtn.GetComponent<LayoutElement>());
 
-            var idStatus = CreateText(identity.transform, "IdentityStatus", "콜사인을 입력하고 신원을 확인하세요.", 20, TextMuted, FontStyle.Normal);
-            Place(idStatus.rectTransform, 0.08f, 0.24f, 0.6f, 0.31f);
+            var nobodyBtn = CreateButton(identity.transform, "Nobody 추가", ButtonFace);
+            Place(nobodyBtn.GetComponent<RectTransform>(), 0.53f, 0.30f, 0.73f, 0.38f);
+            Object.DestroyImmediate(nobodyBtn.GetComponent<LayoutElement>());
+
+            // 화면 세로 2/3 · 가로 90% · 높이 20% — 반투명 테두리 파티 바 (빈 슬롯 없음, 가운데 정렬)
+            var partyYMin = 2f / 3f - 0.10f;
+            var partyYMax = 2f / 3f + 0.10f;
+            var partyPanel = CreateImage(identity.transform, "PartyPanel", new Color(0.08f, 0.10f, 0.12f, 0.22f));
+            Place(partyPanel.rectTransform, 0.05f, partyYMin, 0.95f, partyYMax);
+            var partyOutline = partyPanel.gameObject.AddComponent<Outline>();
+            partyOutline.effectColor = new Color(0.78f, 0.82f, 0.86f, 0.40f);
+            partyOutline.effectDistance = new Vector2(2f, -2f);
+            partyOutline.useGraphicAlpha = true;
+
+            var slotsRoot = CreateImage(partyPanel.transform, "PartySlots", Color.clear);
+            slotsRoot.raycastTarget = false;
+            Place(slotsRoot.rectTransform, 0.02f, 0.12f, 0.98f, 0.88f);
+            var slotsLayout = slotsRoot.gameObject.AddComponent<HorizontalLayoutGroup>();
+            slotsLayout.spacing = 14;
+            slotsLayout.padding = new RectOffset(12, 12, 4, 4);
+            slotsLayout.childAlignment = TextAnchor.MiddleCenter;
+            slotsLayout.childControlHeight = true;
+            slotsLayout.childControlWidth = true;
+            slotsLayout.childForceExpandHeight = true;
+            slotsLayout.childForceExpandWidth = false;
+
+            var slotTexts = new Text[4];
+            var slotBgs = new Image[4];
+            var slotRoots = new GameObject[4];
+            var chipFace = new Color(0.16f, 0.22f, 0.28f, 0.85f);
+            for (var i = 0; i < 4; i++)
+            {
+                var slotGo = new GameObject($"PartySlot{i + 1}", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+                slotGo.transform.SetParent(slotsRoot.transform, false);
+                var le = slotGo.GetComponent<LayoutElement>();
+                le.minWidth = 160;
+                le.preferredWidth = 180;
+                le.minHeight = 64;
+                le.preferredHeight = 72;
+                var bg = slotGo.GetComponent<Image>();
+                bg.color = chipFace;
+                slotBgs[i] = bg;
+                slotRoots[i] = slotGo;
+                slotGo.SetActive(false);
+
+                var label = CreateText(slotGo.transform, "Label", "", 18, TextPrimary, FontStyle.Bold);
+                Stretch(label.rectTransform);
+                label.alignment = TextAnchor.MiddleCenter;
+                slotTexts[i] = label;
+            }
+
+            var enterBtn = CreateButton(identity.transform, "Station 진입", Accent);
+            Place(enterBtn.GetComponent<RectTransform>(), 0.08f, 0.22f, 0.36f, 0.34f);
+            Object.DestroyImmediate(enterBtn.GetComponent<LayoutElement>());
+
+            var idStatus = CreateText(identity.transform, "IdentityStatus", "콜사인으로 등록하거나 Nobody를 추가한 뒤 Station에 진입하세요.", 18, TextMuted, FontStyle.Normal);
+            Place(idStatus.rectTransform, 0.08f, 0.12f, 0.55f, 0.20f);
             idStatus.alignment = TextAnchor.UpperLeft;
 
             var stationPanel = CreateImage(canvasGo.transform, "StationPanel", Color.clear);
@@ -107,21 +158,17 @@ namespace PinkSoft.EditorTools
             content.raycastTarget = false;
             Place(content.rectTransform, 0.08f, 0.12f, 0.55f, 0.88f);
 
-            var brand = CreateText(content.transform, "Brand", "PinkSoft", 72, TextPrimary, FontStyle.Bold);
-            Place(brand.rectTransform, 0f, 1f, 1f, 1f, new Vector2(0, -110), new Vector2(0, -20));
-            brand.alignment = TextAnchor.LowerLeft;
+            var title = CreateText(content.transform, "Title", "Station", 42, Accent, FontStyle.Bold);
+            Place(title.rectTransform, 0f, 1f, 1f, 1f, new Vector2(0, -90), new Vector2(0, -20));
+            title.alignment = TextAnchor.LowerLeft;
 
-            var title = CreateText(content.transform, "Title", "Station", 36, Accent, FontStyle.Normal);
-            Place(title.rectTransform, 0f, 1f, 1f, 1f, new Vector2(0, -165), new Vector2(0, -115));
-            title.alignment = TextAnchor.UpperLeft;
-
-            var tagline = CreateText(content.transform, "Tagline", "클리어런스 승인됨. 미션을 선택하거나 센서를 설정하세요.", 22, TextMuted, FontStyle.Normal);
-            Place(tagline.rectTransform, 0f, 1f, 1f, 1f, new Vector2(0, -230), new Vector2(0, -175));
+            var tagline = CreateText(content.transform, "Tagline", "클리어런스 승인됨. 미션을 선택하세요.", 22, TextMuted, FontStyle.Normal);
+            Place(tagline.rectTransform, 0f, 1f, 1f, 1f, new Vector2(0, -150), new Vector2(0, -100));
             tagline.alignment = TextAnchor.UpperLeft;
 
             var buttons = CreateImage(content.transform, "Buttons", Color.clear);
             buttons.raycastTarget = false;
-            Place(buttons.rectTransform, 0f, 0.02f, 0.85f, 0.48f);
+            Place(buttons.rectTransform, 0f, 0.02f, 0.85f, 0.55f);
             var layout = buttons.gameObject.AddComponent<VerticalLayoutGroup>();
             layout.spacing = 16;
             layout.childAlignment = TextAnchor.UpperLeft;
@@ -131,7 +178,6 @@ namespace PinkSoft.EditorTools
             layout.childForceExpandWidth = true;
 
             var missionBtn = CreateButton(buttons.transform, "미션 선택", Accent);
-            var calibBtn = CreateButton(buttons.transform, "센서 설정", ButtonFace);
             var logoutBtn = CreateButton(buttons.transform, "클리어런스 해제", ButtonFace);
             var quitBtn = CreateButton(buttons.transform, "종료", ButtonFace);
 
@@ -145,11 +191,52 @@ namespace PinkSoft.EditorTools
             sideBody.alignment = TextAnchor.UpperLeft;
 
             var toast = CreateImage(canvasGo.transform, "StatusToast", AccentDim);
-            Place(toast.rectTransform, 0.25f, 0.04f, 0.75f, 0.11f);
+            Place(toast.rectTransform, 0.25f, 0.07f, 0.75f, 0.14f);
             var statusText = CreateText(toast.transform, "StatusText", "", 20, TextPrimary, FontStyle.Normal);
             Stretch(statusText.rectTransform);
             statusText.alignment = TextAnchor.MiddleCenter;
             toast.gameObject.SetActive(false);
+
+            // Clearance·Station 공통 — 우측 상단 BDS Check 특수 버튼
+            var bdsRoot = CreateImage(canvasGo.transform, "BdsCheckHud", Color.clear);
+            bdsRoot.raycastTarget = false;
+            Place(bdsRoot.rectTransform, 0.78f, 0.86f, 0.98f, 0.98f);
+
+            var bdsFace = new Color(0.10f, 0.14f, 0.17f, 0.95f);
+            var bdsBtnGo = new GameObject("BdsCheckButton", typeof(RectTransform), typeof(Image), typeof(Button));
+            bdsBtnGo.transform.SetParent(bdsRoot.transform, false);
+            Stretch(bdsBtnGo.GetComponent<RectTransform>());
+            var bdsImg = bdsBtnGo.GetComponent<Image>();
+            bdsImg.color = bdsFace;
+            var bdsBtn = bdsBtnGo.GetComponent<Button>();
+            bdsBtn.targetGraphic = bdsImg;
+
+            var iconSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Core/Runtime/Lobby/UI/bds_check_icon.png");
+            var iconGo = new GameObject("Icon", typeof(RectTransform), typeof(Image));
+            iconGo.transform.SetParent(bdsBtnGo.transform, false);
+            Place(iconGo.GetComponent<RectTransform>(), 0.06f, 0.18f, 0.34f, 0.82f);
+            var iconImg = iconGo.GetComponent<Image>();
+            iconImg.raycastTarget = false;
+            if (iconSprite != null)
+            {
+                iconImg.sprite = iconSprite;
+                iconImg.color = Color.white;
+                iconImg.preserveAspect = true;
+            }
+            else
+            {
+                iconImg.color = Accent;
+            }
+
+            var bdsLabel = CreateText(bdsBtnGo.transform, "Label", "BDS Check", 20, TextPrimary, FontStyle.Bold);
+            Place(bdsLabel.rectTransform, 0.36f, 0.15f, 0.96f, 0.85f);
+            bdsLabel.alignment = TextAnchor.MiddleLeft;
+
+            // 화면 하단 중앙 — 저작권처럼 연한 회사 표기
+            var creditColor = new Color(0.55f, 0.58f, 0.62f, 0.22f);
+            var credit = CreateText(canvasGo.transform, "CompanyCredit", "PinkSoft", 18, creditColor, FontStyle.Normal);
+            Place(credit.rectTransform, 0.25f, 0.015f, 0.75f, 0.055f);
+            credit.alignment = TextAnchor.MiddleCenter;
 
             var api = root.GetComponent<PinkSoftApiClient>() ?? root.AddComponent<PinkSoftApiClient>();
             var ui = root.GetComponent<StartMenuUI>() ?? root.AddComponent<StartMenuUI>();
@@ -158,17 +245,32 @@ namespace PinkSoft.EditorTools
             so.FindProperty("stationPanel").objectReferenceValue = stationPanel.gameObject;
             so.FindProperty("callsignInput").objectReferenceValue = input;
             so.FindProperty("confirmIdentityButton").objectReferenceValue = confirmBtn;
+            so.FindProperty("nobodyButton").objectReferenceValue = nobodyBtn;
+            so.FindProperty("enterStationButton").objectReferenceValue = enterBtn;
             so.FindProperty("identityStatusText").objectReferenceValue = idStatus;
+            var slotTextsProp = so.FindProperty("partySlotTexts");
+            slotTextsProp.arraySize = 4;
+            var slotBgsProp = so.FindProperty("partySlotBackgrounds");
+            slotBgsProp.arraySize = 4;
+            var slotRootsProp = so.FindProperty("partySlotRoots");
+            slotRootsProp.arraySize = 4;
+            for (var i = 0; i < 4; i++)
+            {
+                slotTextsProp.GetArrayElementAtIndex(i).objectReferenceValue = slotTexts[i];
+                slotBgsProp.GetArrayElementAtIndex(i).objectReferenceValue = slotBgs[i];
+                slotRootsProp.GetArrayElementAtIndex(i).objectReferenceValue = slotRoots[i];
+            }
             so.FindProperty("apiClient").objectReferenceValue = api;
             so.FindProperty("allowOfflineClearance").boolValue = true;
             so.FindProperty("calibrationLauncher").objectReferenceValue = root.GetComponent<BdsCalibrationLauncher>();
             so.FindProperty("selectMissionButton").objectReferenceValue = missionBtn;
-            so.FindProperty("calibrationButton").objectReferenceValue = calibBtn;
             so.FindProperty("quitButton").objectReferenceValue = quitBtn;
             so.FindProperty("logoutButton").objectReferenceValue = logoutBtn;
             so.FindProperty("stationAgentText").objectReferenceValue = sideBody;
             so.FindProperty("statusToast").objectReferenceValue = toast.gameObject;
             so.FindProperty("statusText").objectReferenceValue = statusText;
+            so.FindProperty("bdsCheckButton").objectReferenceValue = bdsBtn;
+            so.FindProperty("bdsCheckRoot").objectReferenceValue = bdsRoot.gameObject;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             var legacy = root.GetComponent<LobbyCalibrationUI>();
@@ -177,7 +279,7 @@ namespace PinkSoft.EditorTools
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
-            Debug.Log("Rendezvous Start UI rebuilt (Clearance → Station).");
+            Debug.Log("Rendezvous Start UI rebuilt (Party ≤4 → Station 진입).");
         }
 
         static void DestroyIfExists(string name)
@@ -248,6 +350,110 @@ namespace PinkSoft.EditorTools
             rt.anchorMax = new Vector2(xMax, yMax);
             rt.offsetMin = minOffset;
             rt.offsetMax = maxOffset;
+        }
+
+        [MenuItem("PinkSoft/Bake Selected UI Anchors")]
+        public static void BakeSelectedAnchors()
+        {
+            var targets = Selection.transforms;
+            if (targets == null || targets.Length == 0)
+            {
+                Debug.LogWarning("Bake Selected UI Anchors: RectTransform을 선택하세요.");
+                return;
+            }
+
+            var list = new System.Collections.Generic.List<RectTransform>();
+            foreach (var t in targets)
+            {
+                if (t is RectTransform rt && rt.parent is RectTransform)
+                    list.Add(rt);
+            }
+
+            list.Sort((a, b) => Depth(a).CompareTo(Depth(b)));
+            var n = 0;
+            foreach (var rt in list)
+            {
+                if (BakeAnchorsToCurrentRect(rt))
+                    n++;
+            }
+
+            if (n > 0)
+                EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            Debug.Log($"Bake Selected UI Anchors: {n}개 정리");
+        }
+
+        [MenuItem("PinkSoft/Bake StartMenuCanvas Anchors")]
+        public static void BakeStartMenuCanvasAnchors()
+        {
+            var canvas = GameObject.Find("StartMenuCanvas");
+            if (canvas == null)
+            {
+                Debug.LogError("StartMenuCanvas not found");
+                return;
+            }
+
+            var list = new System.Collections.Generic.List<RectTransform>();
+            foreach (var rt in canvas.GetComponentsInChildren<RectTransform>(true))
+            {
+                if (rt.parent is RectTransform)
+                    list.Add(rt);
+            }
+
+            list.Sort((a, b) => Depth(a).CompareTo(Depth(b)));
+            var n = 0;
+            foreach (var rt in list)
+            {
+                if (BakeAnchorsToCurrentRect(rt))
+                    n++;
+            }
+
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            Debug.Log($"Bake StartMenuCanvas Anchors: {n}개 변경 / 전체 {list.Count}");
+        }
+
+        static int Depth(Transform t)
+        {
+            var d = 0;
+            for (var p = t; p != null; p = p.parent)
+                d++;
+            return d;
+        }
+
+        static bool BakeAnchorsToCurrentRect(RectTransform rt)
+        {
+            var parent = rt.parent as RectTransform;
+            if (parent == null)
+                return false;
+
+            var corners = new Vector3[4];
+            rt.GetWorldCorners(corners);
+            for (var i = 0; i < 4; i++)
+                corners[i] = parent.InverseTransformPoint(corners[i]);
+
+            var pr = parent.rect;
+            var w = Mathf.Max(pr.width, 0.0001f);
+            var h = Mathf.Max(pr.height, 0.0001f);
+            var amin = new Vector2(
+                Mathf.Round(((corners[0].x - pr.xMin) / w) * 10000f) / 10000f,
+                Mathf.Round(((corners[0].y - pr.yMin) / h) * 10000f) / 10000f);
+            var amax = new Vector2(
+                Mathf.Round(((corners[2].x - pr.xMin) / w) * 10000f) / 10000f,
+                Mathf.Round(((corners[2].y - pr.yMin) / h) * 10000f) / 10000f);
+
+            var changed = (amin - rt.anchorMin).sqrMagnitude > 1e-8f
+                          || (amax - rt.anchorMax).sqrMagnitude > 1e-8f
+                          || rt.anchoredPosition.sqrMagnitude > 1e-6f
+                          || rt.sizeDelta.sqrMagnitude > 1e-6f;
+            if (!changed)
+                return false;
+
+            Undo.RecordObject(rt, "Bake UI Anchors");
+            rt.anchorMin = amin;
+            rt.anchorMax = amax;
+            rt.anchoredPosition = Vector2.zero;
+            rt.sizeDelta = Vector2.zero;
+            EditorUtility.SetDirty(rt);
+            return true;
         }
     }
 }

@@ -8,10 +8,11 @@ Unity Hub → **Open** → 이 레포(`mi`) 폴더를 선택하세요.
 
 1. **Boot** 씬 (`Assets/Scenes/Boot.unity`) 열기 → Play
 2. Boot에서 Core 초기화 후 **Rendezvous** 자동 로드
-3. **Clearance** (콜사인 신원 확인)
-4. **Station**에서 미션 목록 조회·선택 (또는 BDS 센서 설정)
+3. **접선:** 콜사인 신원 확인 / **Nobody 추가** (최대 4명, Station 자동 이동 없음)
+4. **Station 진입** 버튼으로 Station → 미션 목록 조회·선택  
+   (우측 상단 **BDS Check**는 접선·Station 어디서나)
 
-**흐름:** Rendezvous → 신원 확인 → Station → 미션 목록 조회·선택.  
+**흐름:** 파티 등록 → Station 진입 → 미션 선택. Nobody는 계정 없는 친구용 Guest.  
 상세: [Rendezvous UX](../../docs/rendezvous-flow.md)
 
 에디터: Unity **6000.5 LTS** (현재 프로젝트 기준). `ProjectSettings/ProjectVersion.txt` 참고.

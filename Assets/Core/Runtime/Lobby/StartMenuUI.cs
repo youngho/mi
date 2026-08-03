@@ -6,7 +6,8 @@ using UnityEngine.UI;
 namespace PinkSoft.Core.Lobby
 {
     /// <summary>
-    /// 신원 확인 → Station 흐름을 제어한다. 미션 선택은 클리어런스 이후에만 가능하다.
+    /// 접선(Clearance)에서 최대 4명 등록 → 별도 버튼으로 Station 진입.
+    /// Nobody는 Guest 콜사인으로 파티에 추가만 하며, Station으로 자동 전환하지 않는다.
     /// </summary>
     public sealed class StartMenuUI : MonoBehaviour
     {
@@ -14,23 +15,31 @@ namespace PinkSoft.Core.Lobby
         [SerializeField] GameObject identityPanel = null!;
         [SerializeField] GameObject stationPanel = null!;
 
-        [Header("Identity")]
+        [Header("Identity / Rendezvous")]
         [SerializeField] InputField callsignInput = null!;
         [SerializeField] Button confirmIdentityButton = null!;
+        [SerializeField] Button nobodyButton = null!;
+        [SerializeField] Button enterStationButton = null!;
         [SerializeField] Text identityStatusText = null!;
+        [SerializeField] Text[] partySlotTexts = System.Array.Empty<Text>();
+        [SerializeField] Image[] partySlotBackgrounds = System.Array.Empty<Image>();
+        [SerializeField] GameObject[] partySlotRoots = System.Array.Empty<GameObject>();
         [SerializeField] PinkSoftApiClient apiClient = null!;
         [SerializeField] bool allowOfflineClearance = true;
 
         [Header("Station")]
         [SerializeField] BdsCalibrationLauncher calibrationLauncher = null!;
         [SerializeField] Button selectMissionButton = null!;
-        [SerializeField] Button calibrationButton = null!;
         [SerializeField] Button quitButton = null!;
         [SerializeField] Button logoutButton = null!;
         [SerializeField] Text stationAgentText = null!;
         [SerializeField] GameObject statusToast = null!;
         [SerializeField] Text statusText = null!;
         [SerializeField] bool hideCursor;
+
+        [Header("System — always visible")]
+        [SerializeField] Button bdsCheckButton = null!;
+        [SerializeField] GameObject bdsCheckRoot = null!;
 
         bool _busy;
 
@@ -64,67 +73,116 @@ namespace PinkSoft.Core.Lobby
 
         void WireButtons()
         {
-            if (confirmIdentityButton != null)
-            {
-                confirmIdentityButton.onClick.RemoveListener(OnConfirmIdentity);
-                confirmIdentityButton.onClick.AddListener(OnConfirmIdentity);
-            }
+            Bind(confirmIdentityButton, OnConfirmIdentity);
+            Bind(nobodyButton, OnAddNobody);
+            Bind(enterStationButton, OnEnterStation);
+            Bind(selectMissionButton, OnSelectMission);
+            Bind(bdsCheckButton, OnOpenBdsCheck);
+            Bind(quitButton, OnQuit);
+            Bind(logoutButton, OnLogout);
+        }
 
-            if (selectMissionButton != null)
-            {
-                selectMissionButton.onClick.RemoveListener(OnSelectMission);
-                selectMissionButton.onClick.AddListener(OnSelectMission);
-            }
-
-            if (calibrationButton != null)
-            {
-                calibrationButton.onClick.RemoveListener(OnOpenCalibration);
-                calibrationButton.onClick.AddListener(OnOpenCalibration);
-            }
-
-            if (quitButton != null)
-            {
-                quitButton.onClick.RemoveListener(OnQuit);
-                quitButton.onClick.AddListener(OnQuit);
-            }
-
-            if (logoutButton != null)
-            {
-                logoutButton.onClick.RemoveListener(OnLogout);
-                logoutButton.onClick.AddListener(OnLogout);
-            }
+        static void Bind(Button? button, UnityEngine.Events.UnityAction action)
+        {
+            if (button == null)
+                return;
+            button.onClick.RemoveListener(action);
+            button.onClick.AddListener(action);
         }
 
         void RefreshFlow()
         {
-            var cleared = AgentSession.Instance != null && AgentSession.Instance.IsCleared;
+            var session = AgentSession.Instance;
+            var atStation = session != null && session.IsAtStation;
 
             if (identityPanel != null)
-                identityPanel.SetActive(!cleared);
+                identityPanel.SetActive(!atStation);
             if (stationPanel != null)
-                stationPanel.SetActive(cleared);
+                stationPanel.SetActive(atStation);
+            if (bdsCheckRoot != null)
+                bdsCheckRoot.SetActive(true);
 
-            if (cleared)
+            if (atStation)
                 UpdateStationPanel();
             else
-                ResetIdentityStatus();
+                UpdateRendezvousPanel();
         }
 
-        void ResetIdentityStatus()
+        void UpdateRendezvousPanel()
         {
-            if (identityStatusText != null)
-                identityStatusText.text = "콜사인을 입력하고 신원을 확인하세요.";
-            if (callsignInput != null && string.IsNullOrEmpty(callsignInput.text))
-                callsignInput.text = "";
+            var session = AgentSession.Instance;
             _busy = false;
+            SetIdentityButtonsInteractable(true);
+            RefreshPartyListUi(session);
+
+            if (enterStationButton != null)
+                enterStationButton.interactable = session != null && session.CanEnterStation;
+
+            if (nobodyButton != null)
+                nobodyButton.interactable = session == null || !session.IsPartyFull;
+        }
+
+        void RefreshPartyListUi(AgentSession? session)
+        {
+            var filled = new Color(0.16f, 0.22f, 0.28f, 0.85f);
+            var filledText = new Color(0.95f, 0.94f, 0.92f, 1f);
+            var nobodyAccent = new Color(0.95f, 0.72f, 0.55f, 1f);
+
+            for (var i = 0; i < AgentSession.MaxAgents; i++)
+            {
+                var occupied = session != null && i < session.PartyCount;
+
+                if (i < partySlotRoots.Length && partySlotRoots[i] != null)
+                    partySlotRoots[i].SetActive(occupied);
+
+                if (!occupied)
+                    continue;
+
+                if (i < partySlotBackgrounds.Length && partySlotBackgrounds[i] != null)
+                    partySlotBackgrounds[i].color = filled;
+
+                if (i >= partySlotTexts.Length || partySlotTexts[i] == null)
+                    continue;
+
+                var slot = session!.Party[i];
+                if (slot.IsNobody)
+                {
+                    partySlotTexts[i].text = "Nobody\nGuest · 기본값";
+                    partySlotTexts[i].color = nobodyAccent;
+                }
+                else
+                {
+                    partySlotTexts[i].text = $"{slot.User.nickname}\nLv.{slot.User.currentLevel}";
+                    partySlotTexts[i].color = filledText;
+                }
+            }
+        }
+
+        void SetIdentityButtonsInteractable(bool value)
+        {
             if (confirmIdentityButton != null)
-                confirmIdentityButton.interactable = true;
+                confirmIdentityButton.interactable = value;
+            if (nobodyButton != null)
+            {
+                var session = AgentSession.Instance;
+                nobodyButton.interactable = value && (session == null || !session.IsPartyFull);
+            }
         }
 
         public void OnConfirmIdentity()
         {
             if (_busy)
                 return;
+
+            var session = AgentSession.Instance;
+            if (session == null)
+                return;
+
+            if (session.IsPartyFull)
+            {
+                SetIdentityStatus($"파티가 가득 찼습니다 ({AgentSession.MaxAgents}명).");
+                return;
+            }
 
             var callsign = callsignInput != null ? callsignInput.text.Trim() : "";
             if (string.IsNullOrEmpty(callsign))
@@ -133,9 +191,14 @@ namespace PinkSoft.Core.Lobby
                 return;
             }
 
+            if (string.Equals(callsign, AgentSession.NobodyNickname, System.StringComparison.OrdinalIgnoreCase))
+            {
+                OnAddNobody();
+                return;
+            }
+
             _busy = true;
-            if (confirmIdentityButton != null)
-                confirmIdentityButton.interactable = false;
+            SetIdentityButtonsInteractable(false);
             SetIdentityStatus("신원 확인 중…");
 
             if (apiClient != null)
@@ -144,85 +207,143 @@ namespace PinkSoft.Core.Lobby
                 {
                     if (ok && apiClient.UserId != null)
                     {
-                        CompleteClearance(new RuntimeUserData
+                        AddAgentToParty(new RuntimeUserData
                         {
                             userId = apiClient.UserId,
                             nickname = callsign,
                             currentLevel = 1
-                        });
+                        }, isNobody: false, "클리어런스 승인 — 파티에 추가됨");
                         return;
                     }
 
                     if (allowOfflineClearance)
-                        CompleteClearanceOffline(callsign, "서버 연결 실패 — 오프라인 클리어런스");
+                    {
+                        AddAgentToParty(new RuntimeUserData
+                        {
+                            userId = $"local:{callsign}",
+                            nickname = callsign,
+                            currentLevel = 1
+                        }, isNobody: false, "오프라인 클리어런스 — 파티에 추가됨");
+                    }
                     else
                     {
                         SetIdentityStatus("신원 확인 실패. 서버를 확인하세요.");
                         _busy = false;
-                        if (confirmIdentityButton != null)
-                            confirmIdentityButton.interactable = true;
+                        SetIdentityButtonsInteractable(true);
                     }
                 }));
                 return;
             }
 
             if (allowOfflineClearance)
-                CompleteClearanceOffline(callsign, "로컬 클리어런스");
+            {
+                AddAgentToParty(new RuntimeUserData
+                {
+                    userId = $"local:{callsign}",
+                    nickname = callsign,
+                    currentLevel = 1
+                }, isNobody: false, "로컬 클리어런스 — 파티에 추가됨");
+            }
             else
             {
                 SetIdentityStatus("API 클라이언트가 없습니다.");
                 _busy = false;
-                if (confirmIdentityButton != null)
-                    confirmIdentityButton.interactable = true;
+                SetIdentityButtonsInteractable(true);
             }
         }
 
-        void CompleteClearanceOffline(string callsign, string note)
+        /// <summary>계정 없는 친구용 Guest — 파티에만 추가. Station으로 자동 이동하지 않음.</summary>
+        public void OnAddNobody()
         {
-            CompleteClearance(new RuntimeUserData
-            {
-                userId = $"local:{callsign}",
-                nickname = callsign,
-                currentLevel = 1
-            });
-            ShowStatus(note);
+            if (_busy)
+                return;
+
+            var session = AgentSession.Instance;
+            if (session == null)
+                return;
+
+            var result = session.TryAddNobody();
+            HandleAddResult(result, "Nobody(Guest) — 시스템 기본값으로 파티에 추가됨");
         }
 
-        void CompleteClearance(RuntimeUserData user)
+        void AddAgentToParty(RuntimeUserData user, bool isNobody, string okMessage)
         {
-            AgentSession.Instance!.ClearIdentity(user);
+            var session = AgentSession.Instance!;
+            var result = session.TryAddAgent(user, isNobody);
+            HandleAddResult(result, okMessage);
+        }
+
+        void HandleAddResult(AgentSession.AddResult result, string okMessage)
+        {
             _busy = false;
-            if (confirmIdentityButton != null)
-                confirmIdentityButton.interactable = true;
+            SetIdentityButtonsInteractable(true);
+
+            switch (result)
+            {
+                case AgentSession.AddResult.Ok:
+                    if (callsignInput != null)
+                        callsignInput.text = "";
+                    SetIdentityStatus("등록됨. 더 추가하거나 Station에 진입하세요.");
+                    ShowStatus(okMessage);
+                    UpdateRendezvousPanel();
+                    break;
+                case AgentSession.AddResult.PartyFull:
+                    SetIdentityStatus($"파티가 가득 찼습니다 ({AgentSession.MaxAgents}명).");
+                    ShowStatus("파티 정원 초과");
+                    break;
+                case AgentSession.AddResult.DuplicateCallsign:
+                    SetIdentityStatus("이미 등록된 콜사인입니다.");
+                    ShowStatus("중복 콜사인");
+                    break;
+                default:
+                    SetIdentityStatus("등록에 실패했습니다.");
+                    break;
+            }
+        }
+
+        /// <summary>접선 완료 — 파티가 1명 이상일 때만 Station으로 전환.</summary>
+        public void OnEnterStation()
+        {
+            var session = AgentSession.Instance;
+            if (session == null || !session.HasParty)
+            {
+                SetIdentityStatus("먼저 에이전트를 1명 이상 등록하세요.");
+                ShowStatus("파티가 비어 있습니다");
+                return;
+            }
+
+            session.EnterStation();
             RefreshFlow();
-            ShowStatus($"에이전트 {user.nickname} — 클리어런스 승인");
+            ShowStatus($"Station 진입 — 파티 {session.PartyCount}명");
         }
 
         void UpdateStationPanel()
         {
-            var user = AgentSession.Instance?.User;
-            if (stationAgentText == null || user == null)
+            var session = AgentSession.Instance;
+            if (stationAgentText == null || session == null)
                 return;
 
             stationAgentText.text =
-                $"에이전트: {user.nickname}\n" +
-                $"ID: {user.userId}\n" +
-                $"레벨: {user.currentLevel}\n\n" +
-                "스테이션 준비 완료.\n미션을 선택하거나 센서를 설정하세요.";
+                session.BuildPartySummary() +
+                "\n\n미션을 선택하세요.\n(BDS Check는 우측 상단)";
         }
 
         public void OnSelectMission()
         {
-            if (!EnsureCleared())
+            var session = AgentSession.Instance;
+            if (session == null || !session.IsAtStation)
+            {
+                ShowStatus("먼저 Station에 진입하세요.");
                 return;
-            ShowStatus("미션 실행 연동은 다음 단계에서 붙입니다.");
+            }
+
+            ShowStatus(session.IsNobody
+                ? "Nobody 포함 파티 — 시스템 기본 설정으로 미션 연동 예정"
+                : "미션 실행 연동은 다음 단계에서 붙입니다.");
         }
 
-        public void OnOpenCalibration()
+        public void OnOpenBdsCheck()
         {
-            if (!EnsureCleared())
-                return;
-
             if (calibrationLauncher == null)
             {
                 ShowStatus("BdsCalibrationLauncher를 찾을 수 없습니다.");
@@ -233,6 +354,8 @@ namespace PinkSoft.Core.Lobby
                 stationPanel.SetActive(false);
             if (identityPanel != null)
                 identityPanel.SetActive(false);
+            if (bdsCheckRoot != null)
+                bdsCheckRoot.SetActive(false);
 
             calibrationLauncher.LaunchForCurrentUser();
         }
@@ -241,7 +364,8 @@ namespace PinkSoft.Core.Lobby
         {
             AgentSession.Instance?.Revoke();
             RefreshFlow();
-            ShowStatus("클리어런스가 해제되었습니다.");
+            SetIdentityStatus("파티가 해제되었습니다. 다시 접선하세요.");
+            ShowStatus("접선 화면으로 복귀");
         }
 
         public void OnQuit()
@@ -251,16 +375,6 @@ namespace PinkSoft.Core.Lobby
 #else
             Application.Quit();
 #endif
-        }
-
-        bool EnsureCleared()
-        {
-            if (AgentSession.Instance != null && AgentSession.Instance.IsCleared)
-                return true;
-
-            RefreshFlow();
-            ShowStatus("먼저 신원을 확인하세요.");
-            return false;
         }
 
         void SetIdentityStatus(string message)

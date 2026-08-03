@@ -34,21 +34,22 @@ namespace PinkSoft.Core
             if (AgentSession.Instance != null && AgentSession.Instance.IsCleared && AgentSession.Instance.User != null)
                 return AgentSession.Instance.User;
 
-            return BuildGuestUser();
+            // 세션 없이 교정만 열 때 — Nobody와 동일하게 시스템 기본 프로필
+            return AgentSession.BuildNobodyUser();
         }
 
-        public static RuntimeUserData BuildGuestUser() => new()
-        {
-            userId = SystemInfo.deviceUniqueIdentifier,
-            nickname = "센서 테스트",
-            currentLevel = 1
-        };
+        public static RuntimeUserData BuildGuestUser() => AgentSession.BuildNobodyUser();
 
-        public static MissionConfig BuildCalibrationConfig() => new()
+        public static MissionConfig BuildCalibrationConfig()
         {
-            difficultyLevel = 1,
-            timeLimitSeconds = 600,
-            targetScore = 0
-        };
+            // 교정 모드는 항상 시스템 기본(교정용) 설정
+            return new MissionConfig
+            {
+                difficultyLevel = 1,
+                weatherCondition = "clear",
+                timeLimitSeconds = 600,
+                targetScore = 0
+            };
+        }
     }
 }

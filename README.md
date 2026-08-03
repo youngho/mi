@@ -69,10 +69,10 @@ BdsService (Core 상주, DontDestroyOnLoad)
 ### 씬 구성 권장
 
 1. **Boot** — `BdsService`, `MissionInputRouter`, `MissionSessionController` · Main Camera에 `UniversalAdditionalCameraData`
-2. **Rendezvous** — Clearance(신원 확인) → Station(미션 목록 조회·선택, 센서 설정)
+2. **Rendezvous** — 최대 4명 Clearance/Nobody 등록 → **Station 진입** 버튼으로만 Station
 3. **Mission** — 선택 미션 수행만 (BDS/교정 UI 없음) · URP 셰이더·머티리얼 사용
 
-**흐름:** Rendezvous에서 신원 확인 후 Station에서 미션 목록을 조회·선택한다.  
+**흐름:** 접선에서 파티 구성(자동 Station 이동 없음) → Station 진입 → 미션 목록 조회·선택.  
 상세: [docs/rendezvous-flow.md](docs/rendezvous-flow.md)
 
 상세 스펙: [Mission SDK v1](docs/mission-sdk-v1.md) · Unity 가이드: [unity/PinkSoft/README.md](unity/PinkSoft/README.md) (→ 레포 루트에서 Hub로 열기)
@@ -92,7 +92,7 @@ BdsService (Core 상주, DontDestroyOnLoad)
 ```
 +--------------------------------------------------------------------------+
 | PinkSoft Core (메인 게임)                                                |
-| - 에이전트 Clearance → Station에서 미션 목록 조회·선택                   |
+| - 접선 최대 4인 등록 → Station 진입 버튼 → 미션 목록 (Nobody=Guest)   |
 | - 유저 세션 및 데이터 관리 (AgentSession / UserData)                     |
 | - BDS (LiDAR·필터·교정) — BdsService 상주                                |
 | - MissionInputRouter — 활성 미션에 InputHit 라우팅                       |
@@ -168,21 +168,22 @@ namespace PinkSoft.MissionSDK
 
 ## 3. UI/UX 화면 흐름 기획
 
-> **핵심:** Rendezvous에서 신원 확인 → Station에서 미션 목록 조회·선택 → 미션 수행.  
+> **핵심:** 접선에서 최대 4명 등록(Clearance/Nobody) → **Station 진입 버튼**으로만 Station 이동 → 미션 목록 조회·선택.  
 > 상세: [docs/rendezvous-flow.md](docs/rendezvous-flow.md)
 
-### 단계 0: Rendezvous · Clearance (신원 확인) — 필수 게이트
+### 단계 0: Rendezvous 접선 — 파티 등록 (최대 4명)
 
-- 접선 씬(`Rendezvous`)에 들어오면 **먼저** Agent Clearance만 표시한다.
-- 콜사인 입력 후 `POST /auth/login`으로 신원 확인. 실패 시 Station에 진입하지 않는다.
-- 성공 시 `AgentSession`에 `RuntimeUserData` 저장. 개발용 오프라인 클리어런스 허용 가능.
+- 콜사인 **신원 확인** 또는 **Nobody 추가**는 파티에 슬롯만 채운다. **Station으로 자동 이동하지 않는다.**
+- **Nobody:** 계정 없는 첫 플레이 친구가 쓰는 Guest 콜사인. 시스템 기본값만 사용.
+- **Station 진입** 버튼이 별도로 있으며, 파티 1명 이상일 때만 Station으로 전환한다.
+- 우측 상단 **BDS Check**는 접선·Station 공통.
 
 ### 단계 1: Station — 미션 목록 조회 · 선택
 
-- Clearance 후에만 진입한다.
-- Station에서 **미션 목록을 조회**하고, 목록에서 **미션을 선택**한다.
-- 부가: BDS 센서 설정, 에이전트/스테이션 상태 패널, 클리어런스 해제, 종료.
-- Addressables 썸네일 로더는 사용하지 않는다.
+- **Station 진입** 후에만 표시된다.
+- Station에서 **미션 목록을 조회**하고 선택한다.
+- 파티 요약(Nobody 포함)을 스테이션 패널에 표시한다.
+- 부가: 클리어런스 해제(파티 해체→접선), 종료.
 
 ### 단계 2: 상세 정보 및 옵션 세팅 팝업
 
