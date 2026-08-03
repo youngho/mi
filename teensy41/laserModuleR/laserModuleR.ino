@@ -9,8 +9,9 @@
  * Board : Teensy 4.1
  * Role  : Right-side laser detection module (Master)
  *
- * USB Type (Arduino IDE / Teensyduino):
- *   Tools → USB Type → Keyboard + Mouse + Joystick
+ * USB Type (Arduino IDE / Teensyduino) — 필수:
+ *   Tools → USB Type → Serial + Keyboard + Mouse + Joystick
+ *   (Serial만 선택하면 Mouse 미선언으로 컴파일 실패)
  *   (Mouse.moveTo / Mouse.click 사용)
  *
  * ===========================================================================
@@ -102,6 +103,12 @@
 
 #include <Arduino.h>
 #include <Mouse.h>
+
+// Mouse 객체는 Teensy USB Type에 Mouse가 포함될 때만 존재한다.
+// Arduino IDE: Tools → USB Type → "Serial + Keyboard + Mouse + Joystick"
+#ifndef MOUSE_INTERFACE
+#error "USB Type에 Mouse가 없습니다. Tools → USB Type → Serial + Keyboard + Mouse + Joystick 로 바꾼 뒤 다시 컴파일하세요."
+#endif
 
 // ---- Pin map (필요시 변경) ----
 static const int PIN_MOTOR_CLK = 2;   // C
