@@ -34,8 +34,11 @@
  *    Teensy #1 GND         ─────────────── Teensy #2 GND  (공통 필수)
  *
  * 4) 패킷 (ASCII, Serial1 @ LINK_BAUD)
- *    T1,<centideg>,<t_us>\n
+ *    L → R  T1,<centideg>,<t_us>\n
  *      예: T1,4850,12345678  → θ1 = 48.50°, micros() 타임스탬프
+ *    R → L  M,1[,<hz>]\n  모터 기동 동기 (hz 생략 시 L 현재/기본 CLK)
+ *           M,0\n         모터 정지 동기
+ *      ※ USB 시리얼 start/stop 도 그대로 사용 가능 (로컬 우선)
  *
  * 5) 삼각측량 (Master 측)
  *    tan(θ1)=Y/X , tan(θ2)=Y/(W-X)
@@ -219,6 +222,15 @@ static void motorStart(uint32_t hz = 0)
   if (hz == 0) {
     hz = g_clkHz;
   }
+  if (g_running) {
+    // 이미 기동 중이면 CLK만 필요 시 갱신 (R 주기 동기 M,1 중복 무시)
+    if (hz != g_clkHz) {
+      applyClockHz(hz);
+      Serial.printf("[motor] already running — clk -> %lu Hz\n",
+                    (unsigned long)g_clkHz);
+    }
+    return;
+  }
   Serial.println();
   Serial.println("[stage] ===== 모터 START 시퀀스 시작 =====");
   Serial.printf("[stage] 1/4 목표 CLK = %lu Hz\n", (unsigned long)hz);
@@ -237,6 +249,9 @@ static void motorStart(uint32_t hz = 0)
 
 static void motorStop()
 {
+  if (!g_running) {
+    return;
+  }
   Serial.println();
   Serial.println("[stage] ===== 모터 STOP 시퀀스 시작 =====");
   Serial.println("[stage] 1/3 S/S = Hi-Z (정지, 내부 풀업)");
@@ -327,6 +342,52 @@ static void pollSensor()
   }
 }
 
+// Serial1: Master → Slave 모터 동기 M,1[,hz] / M,0
+static void handleLinkSerial()
+{
+  static String line;
+  while (Serial1.available() > 0) {
+    const char c = (char)Serial1.read();
+    if (c == '\r') {
+      continue;
+    }
+    if (c != '\n') {
+      if (line.length() < 64) {
+        line += c;
+      }
+      continue;
+    }
+
+    line.trim();
+    if (line.startsWith("M,")) {
+      // M,1  |  M,1,<hz>  |  M,0
+      const int c1 = line.indexOf(',');
+      const int c2 = line.indexOf(',', c1 + 1);
+      const int run = line.substring(c1 + 1, c2 > c1 ? c2 : (int)line.length()).toInt();
+      if (run == 0) {
+        Serial.println("[link] RX M,0 → motor stop (from Master)");
+        motorStop();
+      } else if (run == 1) {
+        uint32_t hz = g_clkHz;
+        if (c2 > c1) {
+          const uint32_t parsed = (uint32_t)line.substring(c2 + 1).toInt();
+          if (parsed >= CLK_HZ_MIN && parsed <= CLK_HZ_MAX) {
+            hz = parsed;
+          }
+        }
+        Serial.printf("[link] RX M,1 → motor start clk=%lu (from Master)\n",
+                      (unsigned long)hz);
+        motorStart(hz);
+      } else {
+        Serial.printf("[link] bad motor sync: %s\n", line.c_str());
+      }
+    } else if (line.length() > 0) {
+      Serial.printf("[link] ignore: %s\n", line.c_str());
+    }
+    line = "";
+  }
+}
+
 static void printHelp()
 {
   Serial.println();
@@ -339,6 +400,7 @@ static void printHelp()
   Serial.println("  laser on|off   - 650nm 라인 레이저 (Pin9 → NPN)");
   Serial.println("  theta <deg>    - 수동 θ1 송신 (UART 테스트용)");
   Serial.println("  help           - this help");
+  Serial.println("  (also) Master R start/stop → UART M,1 / M,0 자동 동기");
   Serial.println();
 }
 
@@ -496,15 +558,17 @@ void setup()
                 (unsigned long)CLK_HZ_DEFAULT, SCAN_ANGLE_DEG);
   Serial.println("Power: LM2596 5V→VIN, GND공통 / Laser: 3.3V→RED, Pin9→NPN→BLACK");
   Serial.println("Sensor: VCC=3.3V GND=GND DO=5 AO=A0 Sync=6 Laser=9");
-  Serial.println("UART → Master: TX1(1)/RX1(0)/GND — packet T1,<cd>,<us>");
+  Serial.println("UART → Master: TX1(1)/RX1(0)/GND — T1,... / RX M,1|M,0");
   printHelp();
   Serial.println("Wire V=24V(external), G=GND common, then: laser on / start");
+  Serial.println("또는 Master(R)에서 start → L 자동 기동");
   Serial.println("[stage] ===== setup 완료 =====");
 }
 
 void loop()
 {
   handleSerial();
+  handleLinkSerial();
   pollSensor();
 
   const bool locked = isLocked();

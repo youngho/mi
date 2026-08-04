@@ -45,9 +45,11 @@
  *    Teensy #1 RX1 (Pin 0) ◄────────────── Teensy #2 TX1 (Pin 1)
  *    Teensy #1 GND         ─────────────── Teensy #2 GND  (공통 필수)
  *
- * 4) 수신 패킷 (ASCII, Serial1 @ LINK_BAUD)
- *    T1,<centideg>,<t_us>\n
+ * 4) 패킷 (ASCII, Serial1 @ LINK_BAUD)
+ *    L → R  T1,<centideg>,<t_us>\n
  *      예: T1,4850,12345678  → θ1 = 48.50°
+ *    R → L  M,1[,<hz>]\n / M,0\n  — Master 모터 start/stop 시 Slave 동기
+ *      (running 중 2초마다 M,1 재전송 → L 늦게 켜져도 따라옴)
  *
  * 5) 삼각측량
  *    tan(θ1)=Y/X , tan(θ2)=Y/(W-X)
@@ -156,6 +158,10 @@ static volatile uint32_t g_clkHz = CLK_HZ_DEFAULT;
 static volatile bool g_clkHigh = true;
 static bool g_running = false;
 static bool g_lastLocked = false;
+static uint32_t g_lastMotorSyncMs = 0;
+
+// Slave(L) 모터 동기 주기 — L이 늦게 켜져도 따라오도록 running 중 재전송
+static const uint32_t MOTOR_SYNC_PERIOD_MS = 2000;
 static bool g_lastHit = false;
 static bool g_sensorReady = false;
 static bool g_laserOn = false;
@@ -229,6 +235,31 @@ static void stopClock()
   Serial.println("[stage] CLK 핀 Hi-Z (idle)");
 }
 
+static void sendMotorSync(bool run)
+{
+  if (run) {
+    Serial1.printf("M,1,%lu\n", (unsigned long)g_clkHz);
+    Serial.printf("[link] TX M,1,%lu → Slave start\n", (unsigned long)g_clkHz);
+  } else {
+    Serial1.print("M,0\n");
+    Serial.println("[link] TX M,0 → Slave stop");
+  }
+  g_lastMotorSyncMs = millis();
+}
+
+static void pollMotorSync()
+{
+  if (!g_running) {
+    return;
+  }
+  if (millis() - g_lastMotorSyncMs < MOTOR_SYNC_PERIOD_MS) {
+    return;
+  }
+  // 주기 재전송 (로그 스팸 줄이려 USB는 생략, UART만)
+  Serial1.printf("M,1,%lu\n", (unsigned long)g_clkHz);
+  g_lastMotorSyncMs = millis();
+}
+
 static void motorStart(uint32_t hz = 0)
 {
   if (hz == 0) {
@@ -247,6 +278,7 @@ static void motorStart(uint32_t hz = 0)
   Serial.println("[stage] 4/4 PLL 락 대기 중 (LD=LOW 되면 LOCKED)");
   Serial.printf("[motor] START 완료 — clk=%lu Hz, running=1\n",
                 (unsigned long)g_clkHz);
+  sendMotorSync(true);
 }
 
 static void motorStop()
@@ -262,6 +294,7 @@ static void motorStop()
   g_lastLocked = false;
   Serial.println("[stage] 3/3 상태 초기화 (running=0, locked=0)");
   Serial.println("[motor] STOP 완료");
+  sendMotorSync(false);
 }
 
 static bool isLocked()
@@ -458,8 +491,8 @@ static void printHelp()
 {
   Serial.println();
   Serial.println("Commands (Node B / Right / Master):");
-  Serial.println("  start [hz]      - motor start");
-  Serial.println("  stop            - motor stop");
+  Serial.println("  start [hz]      - motor start (+ UART M,1 → Slave L)");
+  Serial.println("  stop            - motor stop (+ UART M,0 → Slave L)");
   Serial.println("  clk <hz>        - set clock (100~10000)");
   Serial.println("  status          - running / lock / θ1 / sync / laser");
   Serial.println("  sensor          - print sensor once");
@@ -644,9 +677,10 @@ void setup()
   Serial.println("laserModuleR / Node B (Master) ready");
   Serial.println("USB Type must be Keyboard+Mouse+Joystick for HID");
   Serial.println("Power: LM2596 5V→VIN, GND공통 / Laser: 3.3V→RED, Pin9→NPN→BLACK");
-  Serial.println("UART ← Slave: RX1(0)/TX1(1)/GND — expect T1,<cd>,<us>");
+  Serial.println("UART ↔ Slave: RX1(0)/TX1(1)/GND — RX T1,... / TX M,1|M,0");
   printHelp();
   Serial.println("Wire V=24V(external), G=GND common, then: laser on / start");
+  Serial.println("R start → L도 UART로 자동 start (2초마다 M,1 재전송)");
   Serial.println("통신 테스트: Left에서 `theta 48.5` → Right에서 `theta2 52.1`");
   Serial.println("또는 Right만: `inject 48.5 52.1`");
   Serial.println("[stage] ===== setup 완료 =====");
@@ -656,6 +690,7 @@ void loop()
 {
   handleSerial();
   handleLinkSerial();
+  pollMotorSync();
   pollSensor();
 
   const bool locked = isLocked();
