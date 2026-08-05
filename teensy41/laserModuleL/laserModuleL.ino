@@ -98,12 +98,28 @@
  *   ※ 레이저 GND를 Teensy 핀에 직접 물리지 말 것 (과전류 위험)
  *
  * ---------------------------------------------------------------------------
- * Photodiode / LM393 센서 모듈 (레이저 수신)
+ * Photodiode / LM393 센서 모듈 (레이저 반사·차단 검출)
  * ---------------------------------------------------------------------------
- *   VCC → Teensy 3.3V
- *   GND → Teensy GND (공통)
- *   DO  → Teensy PIN_SENSOR_DO
- *   AO  → Teensy PIN_SENSOR_AO (선택, 아날로그 세기)
+ *   보드 실크 핀 배열 (센서·가변저항 쪽을 위, 4핀 헤더를 아래로 볼 때
+ *   왼쪽 → 오른쪽):
+ *
+ *        [ 포토다이오드 ]     ← 보드 상단
+ *        (파란 가변저항 / LM393)
+ *     ┌──┬──┬───┬───┐
+ *     │AO│DO│GND│VCC│       ← 4핀 헤더 (실크 그대로)
+ *     └──┴──┴───┴───┘
+ *
+ *   Teensy 연결 (필수):
+ *     모듈 AO  → Teensy A0   (PIN_SENSOR_AO, 아날로그 세기·디버그)
+ *     모듈 DO  → Teensy Pin5 (PIN_SENSOR_DO, HIT 디지털)
+ *     모듈 GND → Teensy GND  (공통)
+ *     모듈 VCC → Teensy 3.3V (※ 5V 금지 — DO가 5V면 Teensy 4.1 손상 위험)
+ *
+ *   실배선 색 예 (보드마다 점퍼 색은 달라도 됨 — 실크 기준):
+ *     AO=노랑, DO=주황, GND=빨강, VCC=갈/밤색
+ *
+ *   DO-LED: 디지털 출력 상태 / PWR-LED: 전원
+ *   가변저항: DO 임계(감도). HIT가 항상 1이면 임계·주변광 조정
  *
  *   보드마다 DO 극성이 다름:
  *     SENSOR_DO_ACTIVE_LOW=true  → DO=LOW 일 때 HIT (흔한 LM393 보드)
@@ -112,7 +128,7 @@
  * ---------------------------------------------------------------------------
  * Sync (0° 기준) — 폴리곤/광학 Sync 펄스
  * ---------------------------------------------------------------------------
- *   Sync OUT → Teensy PIN_SYNC (INPUT_PULLUP, FALLING=0° 권장)
+ *   Sync OUT → Teensy Pin6 (PIN_SYNC, INPUT_PULLUP, FALLING=0° 권장)
  *   Sync 미연결 시: USB 시리얼 `theta <deg>` 로 θ1 수동 송신 가능
  * ---------------------------------------------------------------------------
  */
@@ -568,7 +584,7 @@ void setup()
   Serial.printf("Default CLK = %lu Hz, SCAN_ANGLE=%.1f deg\n",
                 (unsigned long)CLK_HZ_DEFAULT, SCAN_ANGLE_DEG);
   Serial.println("Power: LM2596 5V→VIN, GND공통 / Laser: 3.3V→RED, Pin9→NPN→BLACK");
-  Serial.println("Sensor: VCC=3.3V GND=GND DO=5 AO=A0 Sync=6 Laser=9");
+  Serial.println("Sensor LM393 silk AO|DO|GND|VCC → A0|Pin5|GND|3.3V  Sync=6 Laser=9");
   Serial.println("UART → Master: TX1(1)/RX1(0)/GND — T1,... / RX M,1|M,0");
   printHelp();
   Serial.println("Wire V=24V(external), G=GND common, then: laser on / start");

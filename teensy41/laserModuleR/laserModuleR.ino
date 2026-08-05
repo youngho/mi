@@ -100,10 +100,34 @@
  *   ※ 레이저 GND를 Teensy 핀에 직접 물리지 말 것 (과전류 위험)
  *
  * ---------------------------------------------------------------------------
- * Photodiode / LM393 센서 · Sync
+ * Photodiode / LM393 센서 모듈 (레이저 반사·차단 검출) · Sync
  * ---------------------------------------------------------------------------
- *   센서: VCC=3.3V, GND, DO→PIN_SENSOR_DO, AO→PIN_SENSOR_AO
- *   Sync: PIN_SYNC (INPUT_PULLUP). Sync 없으면 `theta2 <deg>` + 수신 θ1 으로 테스트
+ *   보드 실크 핀 배열 (센서·가변저항 쪽을 위, 4핀 헤더를 아래로 볼 때
+ *   왼쪽 → 오른쪽):
+ *
+ *        [ 포토다이오드 ]     ← 보드 상단
+ *        (파란 가변저항 / LM393)
+ *     ┌──┬──┬───┬───┐
+ *     │AO│DO│GND│VCC│       ← 4핀 헤더 (실크 그대로)
+ *     └──┴──┴───┴───┘
+ *
+ *   Teensy 연결 (필수):
+ *     모듈 AO  → Teensy A0   (PIN_SENSOR_AO, 아날로그 세기·디버그)
+ *     모듈 DO  → Teensy Pin5 (PIN_SENSOR_DO, HIT 디지털)
+ *     모듈 GND → Teensy GND  (공통)
+ *     모듈 VCC → Teensy 3.3V (※ 5V 금지 — DO가 5V면 Teensy 4.1 손상 위험)
+ *
+ *   실배선 색 예 (보드마다 점퍼 색은 달라도 됨 — 실크 기준):
+ *     AO=노랑, DO=주황, GND=빨강, VCC=갈/밤색
+ *
+ *   DO-LED: 디지털 출력 상태 / PWR-LED: 전원
+ *   가변저항: DO 임계(감도). HIT가 항상 1이면 임계·주변광 조정
+ *
+ *   보드마다 DO 극성이 다름:
+ *     SENSOR_DO_ACTIVE_LOW=true  → DO=LOW 일 때 HIT (흔한 LM393 보드)
+ *     SENSOR_DO_ACTIVE_LOW=false → DO=HIGH 일 때 HIT
+ *
+ *   Sync: Pin6 (PIN_SYNC, INPUT_PULLUP). 미연결 시 `theta2 <deg>` + 수신 θ1 테스트
  * ---------------------------------------------------------------------------
  */
 
@@ -726,6 +750,7 @@ void setup()
   Serial.println("laserModuleR / Node B (Master) ready");
   Serial.println("USB Type must be Keyboard+Mouse+Joystick for HID");
   Serial.println("Power: LM2596 5V→VIN, GND공통 / Laser: 3.3V→RED, Pin9→NPN→BLACK");
+  Serial.println("Sensor LM393 silk AO|DO|GND|VCC → A0|Pin5|GND|3.3V  Sync=6 Laser=9");
   Serial.println("UART ↔ Slave: RX1(0)/TX1(1)/GND — RX T1,... / TX M,1|M,0 / ping");
   printHelp();
   Serial.println("Wire V=24V(external), G=GND common, then: laser on / start");
