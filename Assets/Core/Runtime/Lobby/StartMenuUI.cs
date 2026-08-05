@@ -328,11 +328,11 @@ namespace PinkSoft.Core.Lobby
                             userId = $"local:{callsign}",
                             nickname = callsign,
                             currentLevel = 1
-                        }, isNobody: false, "오프라인 클리어런스 — 파티에 추가됨");
+                        }, isNobody: false, "오프라인 클리어런스 — 파티에 추가됨 (정식 가입은 앱)");
                     }
                     else
                     {
-                        SetIdentityStatus("신원 확인 실패. 서버를 확인하세요.");
+                        SetIdentityStatus("등록된 콜사인이 없습니다. 회원가입은 앱에서 한 뒤 다시 시도하세요.");
                         _busy = false;
                         SetIdentityButtonsInteractable(true);
                     }

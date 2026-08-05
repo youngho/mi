@@ -68,7 +68,7 @@ namespace PinkSoft.EditorTools
             Place(idTitle.rectTransform, 0.08f, 0.88f, 0.55f, 0.96f);
             idTitle.alignment = TextAnchor.MiddleLeft;
 
-            var idSub = CreateText(identity.transform, "ClearanceSub", "최대 4명까지 접선 후 Station에 진입합니다.", 20, TextMuted, FontStyle.Normal);
+            var idSub = CreateText(identity.transform, "ClearanceSub", "최대 4명까지 접선 후 Station에 진입합니다. 회원가입은 앱에서 해주세요.", 20, TextMuted, FontStyle.Normal);
             Place(idSub.rectTransform, 0.08f, 0.82f, 0.55f, 0.88f);
             idSub.alignment = TextAnchor.MiddleLeft;
 
@@ -162,7 +162,7 @@ namespace PinkSoft.EditorTools
             Place(enterBtn.GetComponent<RectTransform>(), 0.08f, 0.22f, 0.36f, 0.34f);
             Object.DestroyImmediate(enterBtn.GetComponent<LayoutElement>());
 
-            var idStatus = CreateText(identity.transform, "IdentityStatus", "콜사인으로 등록하거나 Nobody를 추가한 뒤 Station에 진입하세요.", 18, TextMuted, FontStyle.Normal);
+            var idStatus = CreateText(identity.transform, "IdentityStatus", "기존 콜사인으로 신원 확인하거나 Nobody를 추가하세요. 회원가입은 앱에서 해주세요.", 18, TextMuted, FontStyle.Normal);
             Place(idStatus.rectTransform, 0.08f, 0.12f, 0.55f, 0.20f);
             idStatus.alignment = TextAnchor.UpperLeft;
 
