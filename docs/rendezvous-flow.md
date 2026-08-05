@@ -18,6 +18,12 @@
 | **Station 진입** | 파티가 1명 이상일 때, 접선 화면의 **별도 버튼**으로만 전환 |
 | **Station** | 미션 목록 조회·선택 UI |
 | **BDS Check** | Clearance·Station 공통 우측 상단 특수 버튼 |
+| **Agent Presence** | BLE·카메라 등으로 요원이 **해당 타석/접선 지점에 와 있는지** 확인 (**예정**) |
+| **missionId** | 카탈로그 **콘텐츠** ID (어떤 미션인가). 영구 |
+| **partyId** | 이번 접선 파티 ID. Clearance~해제 (**예정**) |
+| **runId** | **이번 미션 플레이 1회** ID. 시작~complete (**예정**) |
+| **bayId** / **deviceId** | 타석·키오스크 고정 ID (**예정**, Presence·Run에 재사용) |
+| **presenceSessionId** | 앱↔타석 현장 매칭 세션. 수 분 (**예정**, Agent Presence) |
 
 ## 필수 흐름
 
@@ -52,10 +58,10 @@ Station·미션 UI는 숨긴다. 이 화면에서만 파티를 구성한다.
 | 요소 | 설명 |
 |------|------|
 | 콜사인 입력 | 에이전트 닉네임 (이미 앱에서 가입한 계정) |
-| 신원 확인 | `POST /auth/login` 등 → **파티에 추가** (Station 이동 없음). 미등록 시 **앱에서 가입** 안내 |
+| 신원 확인 | `POST /mi/api/auth/login` (pinkapi) → **파티에 추가** (Station 이동 없음). 미등록 시 **앱에서 가입** 안내 |
 | **Nobody 추가** | 계정 없는 Guest → **파티에 추가** (Station 이동 없음) |
 | 파티 목록 | 세로 **2/3** 지점, 가로 **90%**, 높이 **20%** 반투명 테두리 바. 등록된 멤버만 가운데 정렬 (카운트 텍스트 없음) |
-| **Station 진입** | 파티 ≥1 일 때 활성. Station으로 전환하는 **유일한** 버튼 |
+| **Station 진입** | 파티 ≥1 일 때 활성. 가능하면 `POST /mi/api/parties` 후 Station으로 전환하는 **유일한** 버튼 |
 | BDS Check | 우측 상단 — 신원과 무관하게 센서 점검 |
 
 ### Nobody (Guest) — 4인 플레이 맥락
@@ -82,7 +88,7 @@ Station·미션 UI는 숨긴다. 이 화면에서만 파티를 구성한다.
 | 영역 | 역할 |
 |------|------|
 | **미션 목록** | 카탈로그 조회 후 리스트 |
-| **미션 선택** | 목록에서 선택 후 실행 |
+| **미션 선택** | 목록에서 선택 후 `POST /mi/api/runs` → (현재) 테스트 결과 `POST /mi/api/mission/complete` |
 | **스테이션 패널** | 파티 요약 (Nobody 포함 여부) |
 | **클리어런스 해제** | 파티 해체 → 접선 화면 |
 | **종료** | 앱 종료 |
@@ -121,8 +127,56 @@ Station·미션 UI는 숨긴다. 이 화면에서만 파티를 구성한다.
 | `Assets/Scenes/BdsCheck.unity` | BDS Check 전용 |
 | `Assets/Core/Runtime/AgentSession.cs` | 최대 4인 파티, Station 진입 플래그 |
 | `Assets/Core/Runtime/Lobby/StartMenuUI.cs` | 등록 ↔ Station 진입 / BDS Check 씬 전환 |
-| `Assets/Core/Runtime/PinkSoftApiClient.cs` | login / catalog / complete |
+| `Assets/Core/Runtime/PinkSoftApiClient.cs` | pinkapi `/mi/api` — login / catalog / party / run / complete |
 | `Assets/Core/Runtime/BdsCheck/BdsCheckSceneController.cs` | 5포인트 통과 검증 |
+
+## Planned — Agent Presence (요원 현장 감지)
+
+BLE·카메라 등으로 요원이 해당 타석/접선 지점에 도착했는지 확인하고,  
+앱 원격 로그인을 보완·자동화한다. (폴백: 코드/QR Clearance)
+
+| 채널 (예정) | 이름 예 |
+|-------------|---------|
+| BLE | Proximity Presence |
+| 카메라 | Visual Presence / Sighting |
+| NFC 탭 | Tap Presence |
+
+- **Clearance** = 누구인지(신원), **Presence** = 여기 있는지(현장).
+- 현재 Clearance(콜사인·앱 가입 안내)와 별개 기능으로 둔다.
+
+## Planned — Party / Run ID
+
+콘텐츠(`missionId`)와 **이번 플레이**를 분리한다. 점수·랭킹·보상은 `runId`에 묶는다.
+
+| ID | 무엇 | 수명 | 발급 |
+|----|------|------|------|
+| `missionId` | 카탈로그 콘텐츠 | 영구 | 카탈로그 (현재) |
+| `userId` | 요원 계정 | 영구 | `POST /mi/api/auth/login` |
+| `partyId` | 이번 접선 파티 (최대 4명) | Clearance~해제 | 서버 (**예정**) |
+| `bayId` / `deviceId` | 타석·키오스크 | 설치 시 고정 | 설정·로그인 시 전달 |
+| `presenceSessionId` | 앱↔타석 현장 매칭 | 수 분 | Presence (**예정**) |
+| `runId` | 이번 미션 플레이 1회 | 시작~complete | 서버 `POST /runs` (**예정**) |
+
+```text
+Clearance → partyId 발급 (슬롯에 userId 등록)
+     ↓
+[예정] Presence → bayId + presenceSessionId 로 “이 방에 왔음” 확인
+     ↓
+Station에서 미션 선택
+     ↓
+POST /mi/api/runs  →  runId 발급  (partyId, missionId, bayId, members[])
+     ↓
+플레이 (로컬은 runId 유지, eventLog에 포함)
+     ↓
+POST /mi/api/mission/complete { runId, … }  → 검증·보상·랭킹
+     ↓
+파티 유지 시 다음 미션 = 새 runId / 접선 해제 시 partyId 종료
+```
+
+- **`runId`는 서버 발급**이 원칙이다. 클라이언트 UUID만 쓰면 조작·중복 제출에 취약하다.
+- MVP 최소: `missionId`(유지) + `runId` + `partyId` + `bayId`. `presenceSessionId`는 Agent Presence 때 `bayId`와 묶는다.
+- 명칭: **Mission** = 콘텐츠, **Run** = 이번 플레이, **Party** = 접선 그룹, **Presence Session** = 현장 확인.
+- API 초안: [api-openapi.yaml](api-openapi.yaml) (`/mi/api/...`, pinkapi `io.pinksoft.mi`).
 
 ## 비범위
 

@@ -19,6 +19,11 @@ namespace PinkSoft.Core
         readonly List<AgentSlot> _party = new();
         bool _atStation;
 
+        public string? ServerPartyId { get; private set; }
+        public string? ActiveRunId { get; private set; }
+        public string? ActiveMissionId { get; private set; }
+        public string? ActiveMissionTitle { get; private set; }
+
         public IReadOnlyList<AgentSlot> Party => _party;
         public int PartyCount => _party.Count;
         public bool HasParty => _party.Count > 0;
@@ -109,11 +114,29 @@ namespace PinkSoft.Core
 
         public void LeaveStation() => _atStation = false;
 
+        public void SetServerPartyId(string? partyId) => ServerPartyId = partyId;
+
+        public void SetActiveRun(string? runId, string? missionId, string? missionTitle)
+        {
+            ActiveRunId = runId;
+            ActiveMissionId = missionId;
+            ActiveMissionTitle = missionTitle;
+        }
+
+        public void ClearActiveRun()
+        {
+            ActiveRunId = null;
+            ActiveMissionId = null;
+            ActiveMissionTitle = null;
+        }
+
         /// <summary>파티 전체 해제 + Station 이탈 → 접선 화면으로.</summary>
         public void Revoke()
         {
             _party.Clear();
             _atStation = false;
+            ServerPartyId = null;
+            ClearActiveRun();
         }
 
         int CountNobody()
@@ -165,8 +188,19 @@ namespace PinkSoft.Core
                     : $"{slot.User.nickname}  ·  Lv.{slot.User.currentLevel}";
                 lines.AppendLine($"  {i + 1}. {tag}");
             }
+
+            if (!string.IsNullOrEmpty(ServerPartyId))
+                lines.AppendLine($"partyId  {ShortId(ServerPartyId)}");
+            if (!string.IsNullOrEmpty(ActiveMissionId))
+                lines.AppendLine($"mission  {ActiveMissionTitle ?? ActiveMissionId}");
+            if (!string.IsNullOrEmpty(ActiveRunId))
+                lines.AppendLine($"runId    {ShortId(ActiveRunId)}");
+
             return lines.ToString().TrimEnd();
         }
+
+        static string ShortId(string id) =>
+            id.Length <= 8 ? id : id[..8] + "…";
 
         public string GetSlotLabel(int index)
         {

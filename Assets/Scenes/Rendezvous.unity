@@ -216,7 +216,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 326453e373b0c9715307660329d3d93e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PinkSoft.Core.PinkSoftApiClient
-  baseUrl: http://localhost:3000
+  baseUrl: http://localhost:8080
+  apiRoot: /mi/api
 --- !u!1 &200000
 GameObject:
   m_ObjectHideFlags: 0

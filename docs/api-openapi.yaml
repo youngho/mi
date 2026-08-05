@@ -1,19 +1,32 @@
 openapi: 3.0.3
 info:
-  title: PinkSoft Mission API
+  title: PinkSoft MI API (pinkapi)
   version: 1.0.0
-  description: PMS 백엔드 MVP API
+  description: |
+    MI(Rendezvous) API — pinkapi `io.pinksoft.mi` 모듈.
+    실제 경로 prefix: `/mi`
+
+    ID 구분:
+    - missionId — 카탈로그 콘텐츠 (영구)
+    - userId — 요원 계정
+    - partyId — 이번 접선 파티
+    - runId — 이번 미션 플레이 1회 (서버 발급)
+    - bayId / deviceId — 타석·키오스크
+    - presenceSessionId — 앱↔타석 현장 매칭 [Planned]
+
+    UX: docs/rendezvous-flow.md
 
 servers:
+  - url: http://localhost:8080
+    description: Local pinkapi
   - url: https://api.pinksoft.io
-    description: Production
-  - url: http://localhost:3000
-    description: Local development
+    description: Production (경로 /mi)
 
 paths:
-  /auth/login:
+  /mi/api/auth/login:
     post:
-      summary: 로그인 및 JWT 발급
+      summary: 로그인 (없으면 콜사인 생성) 및 token 발급
+      tags: [MI Auth]
       requestBody:
         required: true
         content:
@@ -24,6 +37,7 @@ paths:
               properties:
                 nickname:
                   type: string
+                  description: 콜사인
                 deviceId:
                   type: string
       responses:
@@ -34,11 +48,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
 
-  /missions/catalog:
+  /mi/api/missions/catalog:
     get:
       summary: 미션 메타데이터 목록
-      security:
-        - bearerAuth: []
+      tags: [MI Missions]
       parameters:
         - name: category
           in: query
@@ -58,9 +71,52 @@ paths:
                     items:
                       $ref: '#/components/schemas/MissionMetadata'
 
-  /mission/complete:
+  /mi/api/parties:
+    post:
+      summary: 접선 파티 생성 — partyId 발급
+      tags: [MI Party]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePartyRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartyResponse'
+
+  /mi/api/runs:
+    post:
+      summary: 미션 플레이(Run) 시작 — runId 서버 발급
+      tags: [MI Run]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRunRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+
+  /mi/api/mission/complete:
     post:
       summary: 미션 완료 및 보상·랭킹 갱신
+      tags: [MI Missions]
+      description: |
+        runId가 있으면 해당 run 완료. 없으면 missionId로 run을 만든 뒤 완료 (MVP 폴백).
       security:
         - bearerAuth: []
       requestBody:
@@ -76,12 +132,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MissionCompleteResponse'
+        '401':
+          description: Unauthorized
         '422':
           description: 점수 검증 실패
 
-  /ranking/{missionId}:
+  /mi/api/ranking/{missionId}:
     get:
-      summary: 미션별 글로벌 랭킹
+      summary: 미션별 랭킹
+      tags: [MI Missions]
       parameters:
         - name: missionId
           in: path
@@ -111,7 +170,7 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
+      bearerFormat: opaque
 
   schemas:
     AuthResponse:
@@ -150,22 +209,15 @@ components:
         category:
           type: string
 
-    ScoreEventRecord:
-      type: object
-      properties:
-        eventType:
-          type: string
-        targetId:
-          type: string
-        timestampMs:
-          type: integer
-
     MissionCompleteRequest:
       type: object
-      required: [missionId, finalScore, playTime, eventLog]
       properties:
+        runId:
+          type: string
+          description: 서버 발급 플레이 1회 ID (권장)
         missionId:
           type: string
+          description: runId 없을 때 MVP 폴백
         finalScore:
           type: integer
         playTime:
@@ -175,7 +227,7 @@ components:
         eventLog:
           type: array
           items:
-            $ref: '#/components/schemas/ScoreEventRecord'
+            type: object
 
     MissionCompleteResponse:
       type: object
@@ -188,6 +240,72 @@ components:
           type: integer
         validated:
           type: boolean
+
+    CreatePartyRequest:
+      type: object
+      properties:
+        bayId:
+          type: string
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+              nickname:
+                type: string
+              isNobody:
+                type: boolean
+
+    PartyResponse:
+      type: object
+      properties:
+        partyId:
+          type: string
+        bayId:
+          type: string
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+              nickname:
+                type: string
+              isNobody:
+                type: boolean
+
+    CreateRunRequest:
+      type: object
+      required: [missionId]
+      properties:
+        missionId:
+          type: string
+        partyId:
+          type: string
+        bayId:
+          type: string
+        members:
+          type: array
+          items:
+            type: string
+
+    RunResponse:
+      type: object
+      properties:
+        runId:
+          type: string
+        missionId:
+          type: string
+        partyId:
+          type: string
+        bayId:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
 
     RankingEntry:
       type: object

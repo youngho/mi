@@ -47,7 +47,7 @@ BdsService (Core 상주, DontDestroyOnLoad)
 | BDS Check | 전용 씬 `BdsCheck` — Teensy R HID 5포인트 검증 ([docs/bds-check.md](docs/bds-check.md)) |
 | 내장 미션 | `TargetPracticeMission`, `TimedEscapeMission`, `ComboShootMission` — Context.Input 구독 |
 | 렌더 파이프라인 | **URP 17.5** — Built-In RP에서 전환 (`Assets/Settings/URP_Pipeline.asset`) |
-| 백엔드 | `POST /auth/login`, `GET /missions/catalog`, `POST /mission/complete`, `GET /ranking/:id` |
+| 백엔드 | pinkapi MI: `POST /mi/api/auth/login`, `GET /mi/api/missions/catalog`, `POST /mi/api/runs`, `POST /mi/api/mission/complete`, `GET /mi/api/ranking/:id` |
 
 ### Unity 핵심 파일
 
@@ -199,7 +199,7 @@ namespace PinkSoft.MissionSDK
 ## 4. 사용자 데이터 및 점수 관리 (Security & Anti-Cheat)
 
 1. **점수 검증 주도권 (Core Auth):** 미션은 `ReportEvent`로 이벤트만 보고하고, 점수 계산·누적은 Core `ScoreEngine`이 담당합니다. 서버는 `eventLog`를 재계산해 검증합니다.
-2. **클리어 및 보상 지급:** 미션이 종료되면 Core 시스템이 백엔드 API(`api.pinksoft.io/mission/complete`)를 호출하여 유저 데이터베이스(MariaDB)의 골드 보상, 경험치 및 글로벌 랭킹 점수를 안전하게 갱신합니다.
+2. **클리어 및 보상 지급:** 미션이 종료되면 Core 시스템이 pinkapi MI API(`…/mi/api/mission/complete`)를 호출하여 유저 데이터베이스(MariaDB)의 골드 보상, 경험치 및 글로벌 랭킹 점수를 안전하게 갱신합니다.
 
 ## 5. BDS (Bullet Detection System)
 

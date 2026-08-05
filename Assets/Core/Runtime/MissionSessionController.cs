@@ -103,7 +103,28 @@ namespace PinkSoft.Core
                 result.starsEarned = _scoreEngine.CalculateStars(_config.targetScore);
                 result.eventLog = new System.Collections.Generic.List<ScoreEventRecord>(_scoreEngine.EventLog);
             }
+
+            result.playTime = Mathf.Max(1, Mathf.RoundToInt(_playTime));
             Debug.Log($"Mission ended success={success} score={result.finalScore} stars={result.starsEarned}");
+
+            var session = AgentSession.Instance;
+            var api = FindAnyObjectByType<PinkSoftApiClient>();
+            if (api == null || session == null || string.IsNullOrEmpty(session.ActiveMissionId))
+                return;
+
+            var missionId = session.ActiveMissionId;
+            var runId = session.ActiveRunId;
+            StartCoroutine(api.CompleteMission(result, missionId, runId, res =>
+            {
+                if (res == null)
+                {
+                    Debug.LogWarning("[MI] mission complete failed");
+                    return;
+                }
+
+                session.ClearActiveRun();
+                Debug.Log($"[MI] complete gold+{res.goldReward} exp+{res.expGained} rank#{res.newRank}");
+            }));
         }
 
         public void PauseMission()

@@ -1,4 +1,8 @@
-# PinkSoft Backend API
+# PinkSoft Backend API (레거시 Node)
+
+> **현재 권장:** pinkapi `io.pinksoft.mi` — 경로 `/mi/api/...`  
+> Unity 클라이언트(`PinkSoftApiClient`)는 pinkapi(`http://localhost:8080`, `/mi/api`)를 사용합니다.  
+> 이 `backend/` Node 서버는 로컬 실험용으로만 유지합니다.
 
 ## 실행 (메모리 DB)
 
