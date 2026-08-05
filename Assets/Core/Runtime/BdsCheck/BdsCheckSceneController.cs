@@ -1,5 +1,6 @@
 using PinkSoft.MissionSDK;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -8,11 +9,14 @@ namespace PinkSoft.Core.BdsCheck
     /// <summary>
     /// BdsCheck 씬 로직만 담당. UI 레이아웃은 Canvas 오브젝트를 인스펙터에서 편집한다.
     /// Teensy R USB HID → TouchInputSource → 5포인트 매칭 (1920×1080).
+    /// Intro에서도 HID last-hit HUD로 inject 수신을 확인한다.
     /// </summary>
     public sealed class BdsCheckSceneController : MonoBehaviour
     {
         public const int ExpectedScreenWidth = 1920;
         public const int ExpectedScreenHeight = 1080;
+
+        const float HidStatusRefreshInterval = 0.2f;
 
         enum Phase
         {
@@ -46,6 +50,8 @@ namespace PinkSoft.Core.BdsCheck
         [SerializeField] Text titleText = null!;
         [SerializeField] Text statusText = null!;
         [SerializeField] Text bodyText = null!;
+        /// <summary>HID 장치·last hit. null이면 statusText에 HID 블록을 append.</summary>
+        [SerializeField] Text? hidStatusText;
 
         [Header("UI — Buttons (Intro)")]
         [SerializeField] GameObject introButtonGroup = null!;
@@ -77,6 +83,12 @@ namespace PinkSoft.Core.BdsCheck
         bool _spawnedLocalBds;
         BdsService? _bds;
         IInputSource? _input;
+
+        Vector2 _lastHitScreen;
+        float _lastHitTime;
+        bool _hasLastHit;
+        float _nextHidStatusRefresh;
+        string _cachedStatusLine = "";
 
         float MatchRadiusPx => matchRadiusNorm * Mathf.Min(Screen.width, Screen.height);
 
@@ -111,6 +123,17 @@ namespace PinkSoft.Core.BdsCheck
                 _input.OnHit += OnInputHit;
 
             SetPhase(Phase.Intro);
+            RefreshHidStatus();
+        }
+
+        void Update()
+        {
+            if (_closed || _bds == null)
+                return;
+            if (Time.unscaledTime < _nextHidStatusRefresh)
+                return;
+            _nextHidStatusRefresh = Time.unscaledTime + HidStatusRefreshInterval;
+            RefreshHidStatus();
         }
 
         void OnDestroy()
@@ -159,15 +182,15 @@ namespace PinkSoft.Core.BdsCheck
 
         void RefreshUi()
         {
-            var statusLine = BuildStatusLine();
+            _cachedStatusLine = BuildStatusLine();
 
             switch (_phase)
             {
                 case Phase.Intro:
                     SetTexts(
                         "BDS Check — Teensy R HID",
-                        statusLine,
-                        "HID 통과 좌표를 5포인트와 비교합니다.\nTeensy Mouse.moveTo + click → 이 화면\n아래 버튼으로 시작하세요.");
+                        _cachedStatusLine,
+                        "HID 통과 좌표를 5포인트와 비교합니다.\nTeensy Mouse.moveTo + click → 이 화면\nIntro에서 inject 30 30 → 아래 HID Last hit 확인\n아래 버튼으로 시작하세요.");
                     ShowButtonGroup(introButtonGroup);
                     SetTargetMarkerVisible(false);
                     break;
@@ -178,7 +201,7 @@ namespace PinkSoft.Core.BdsCheck
                     var expected = ExpectedScreen(_pointIndex);
                     SetTexts(
                         $"포인트 {_pointIndex + 1} / {PointCount} — {label}",
-                        statusLine,
+                        _cachedStatusLine,
                         $"표시된 십자를 통과하세요.\n목표 ({expected.x:F0}, {expected.y:F0})");
                     ShowButtonGroup(checkingButtonGroup);
                     SetTargetMarkerVisible(true);
@@ -191,7 +214,7 @@ namespace PinkSoft.Core.BdsCheck
                 case Phase.Summary:
                     SetTexts(
                         IsOverallPass(CountPassed()) ? "결과 · BDS 정상" : "결과 · BDS 문제 가능",
-                        statusLine,
+                        _cachedStatusLine,
                         BuildSummaryBody());
                     ShowButtonGroup(summaryButtonGroup);
                     SetTargetMarkerVisible(false);
@@ -199,6 +222,7 @@ namespace PinkSoft.Core.BdsCheck
             }
 
             RefreshHitMarkers();
+            RefreshHidStatus();
         }
 
         string BuildStatusLine()
@@ -210,6 +234,67 @@ namespace PinkSoft.Core.BdsCheck
             if (_spawnedLocalBds)
                 line += "\n단독 실행 (Boot 미경유)";
             return line;
+        }
+
+        string BuildHidStatusLine()
+        {
+            var mouse = Mouse.current;
+            var device = mouse != null
+                ? (string.IsNullOrWhiteSpace(mouse.displayName) ? mouse.name : mouse.displayName)
+                : "없음";
+
+            var sb = new System.Text.StringBuilder();
+            sb.Append("HID: ").Append(device);
+            if (_hasLastHit)
+            {
+                var age = Mathf.Max(0f, Time.unscaledTime - _lastHitTime);
+                sb.Append('\n')
+                    .Append("Last hit: (")
+                    .Append(_lastHitScreen.x.ToString("F0"))
+                    .Append(", ")
+                    .Append(_lastHitScreen.y.ToString("F0"))
+                    .Append(") · ")
+                    .Append(age.ToString("F1"))
+                    .Append("s 전");
+            }
+            else
+            {
+                sb.Append('\n').Append("Last hit: (대기 — inject 30 30)");
+            }
+
+            if (Screen.width != ExpectedScreenWidth || Screen.height != ExpectedScreenHeight)
+            {
+                sb.Append('\n')
+                    .Append("⚠ Screen ")
+                    .Append(Screen.width)
+                    .Append('×')
+                    .Append(Screen.height)
+                    .Append(" ≠ ")
+                    .Append(ExpectedScreenWidth)
+                    .Append('×')
+                    .Append(ExpectedScreenHeight);
+            }
+
+            return sb.ToString();
+        }
+
+        void RefreshHidStatus()
+        {
+            var hid = BuildHidStatusLine();
+            if (hidStatusText != null)
+            {
+                hidStatusText.text = hid;
+                if (statusText != null && !string.IsNullOrEmpty(_cachedStatusLine))
+                    statusText.text = _cachedStatusLine;
+                return;
+            }
+
+            if (statusText == null)
+                return;
+
+            if (string.IsNullOrEmpty(_cachedStatusLine))
+                _cachedStatusLine = BuildStatusLine();
+            statusText.text = _cachedStatusLine + "\n" + hid;
         }
 
         string BuildSummaryBody()
@@ -359,6 +444,11 @@ namespace PinkSoft.Core.BdsCheck
 
         void OnInputHit(InputHit hit)
         {
+            _lastHitScreen = hit.ScreenPosition;
+            _lastHitTime = Time.unscaledTime;
+            _hasLastHit = true;
+            RefreshHidStatus();
+
             if (!_acceptingHits || _phase != Phase.Checking)
                 return;
             if (_pointIndex < 0 || _pointIndex >= _results.Length)

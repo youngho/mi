@@ -61,11 +61,13 @@ namespace PinkSoft.EditorTools
             var textPanel = CreateImage(canvasGo.transform, "TextPanel", Panel, stretch: false);
             Place(textPanel.rectTransform, 0.22f, 0.20f, 0.78f, 0.93f);
             var title = CreateText(textPanel.transform, "TitleText", "BDS Check — Teensy R HID", 40, TextPrimary, FontStyle.Bold);
-            Place(title.rectTransform, 0.04f, 0.78f, 0.96f, 0.96f);
-            var status = CreateText(textPanel.transform, "StatusText", "status", 24, TextMuted, FontStyle.Normal);
-            Place(status.rectTransform, 0.04f, 0.58f, 0.96f, 0.78f);
+            Place(title.rectTransform, 0.04f, 0.84f, 0.96f, 0.98f);
+            var status = CreateText(textPanel.transform, "StatusText", "status", 22, TextMuted, FontStyle.Normal);
+            Place(status.rectTransform, 0.04f, 0.68f, 0.96f, 0.84f);
+            var hidStatus = CreateText(textPanel.transform, "HidStatusText", "HID: …", 22, TextMuted, FontStyle.Normal);
+            Place(hidStatus.rectTransform, 0.04f, 0.52f, 0.96f, 0.68f);
             var body = CreateText(textPanel.transform, "BodyText", "body", 26, TextPrimary, FontStyle.Normal);
-            Place(body.rectTransform, 0.04f, 0.04f, 0.96f, 0.58f);
+            Place(body.rectTransform, 0.04f, 0.04f, 0.96f, 0.52f);
             body.alignment = TextAnchor.UpperCenter;
 
             var buttonBar = CreateImage(canvasGo.transform, "ButtonBar", Panel, stretch: false);
@@ -104,6 +106,7 @@ namespace PinkSoft.EditorTools
             var so = new SerializedObject(controller);
             so.FindProperty("titleText").objectReferenceValue = title;
             so.FindProperty("statusText").objectReferenceValue = status;
+            so.FindProperty("hidStatusText").objectReferenceValue = hidStatus;
             so.FindProperty("bodyText").objectReferenceValue = body;
             so.FindProperty("introButtonGroup").objectReferenceValue = introGroup;
             so.FindProperty("startButton").objectReferenceValue = startBtn;
@@ -134,7 +137,9 @@ namespace PinkSoft.EditorTools
             EditorSceneManager.SaveScene(scene, ScenePath);
             AssetDatabase.Refresh();
             EnsureInBuildSettings();
-            Debug.Log($"BdsCheck uGUI scene rebuilt: {ScenePath} — Hierarchy에서 TextPanel/ButtonBar를 편집하세요.");
+            Debug.Log(
+                $"BdsCheck uGUI scene rebuilt: {ScenePath} — Hierarchy에서 TextPanel/ButtonBar를 편집하세요. " +
+                "(Rebuild는 씬을 덮어씁니다.)");
         }
 
         static RectTransform CreateTargetMarker(Transform parent)

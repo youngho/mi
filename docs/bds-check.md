@@ -69,13 +69,33 @@ Rendezvous (접선/Station)
 
 Teensy `emitHid`의 Y는 `1 - yMm/H`로 뒤집어 OS/Unity 스크린 좌표(하단=0)에 맞춘다.
 
+## HID 상태 HUD
+
+Intro/Checking/Summary 전 구간에서 TextPanel의 **HidStatusText**가 갱신된다.
+
+| 표시 | 의미 |
+|------|------|
+| `HID: <장치명>` | `Mouse.current.displayName` (없으면 `없음`) |
+| `Last hit: (x, y) · Ns 전` | Teensy/`TouchInputSource`가 받은 마지막 클릭 |
+| `Last hit: (대기 — inject 30 30)` | 아직 hit 없음 |
+| `⚠ Screen … ≠ 1920×1080` | Game 뷰 해상도 불일치 |
+
+**빠른 확인 (검증 시작 전)**  
+1. `BdsCheck` Play (Game 뷰 1920×1080)  
+2. Teensy R 시리얼: `inject 30 30`  
+3. HUD `Last hit`가 ~(960, 525) 근처로 바뀌면 HID 수신 OK  
+
+장치명만으로 Teensy와 트랙패드를 구분하지는 않는다. 목적은 **클릭·좌표 수신** 확인이다.
+
+씬 UI를 코드로 다시 만들 때: **PinkSoft/Rebuild BdsCheck Scene** (기존 Hierarchy 수동 편집은 덮어씀).
+
 ## 관련 코드 · 씬
 
 | 경로 | 역할 |
 |------|------|
 | `teensy41/laserModuleR/laserModuleR.ino` | 삼각측량 → HID `moveTo`/`click` |
 | `Assets/Scenes/BdsCheck.unity` | BDS Check 전용 씬 (**uGUI** — Hierarchy에서 레이아웃 편집) |
-| `Assets/Core/Runtime/BdsCheck/BdsCheckSceneController.cs` | 매칭·버튼 동작만 (레이아웃 없음) |
+| `Assets/Core/Runtime/BdsCheck/BdsCheckSceneController.cs` | 매칭·버튼·HID last-hit HUD |
 | `Assets/Core/Editor/BdsCheckSceneBuilder.cs` | **PinkSoft/Rebuild BdsCheck Scene** |
 | `Assets/BDS/Runtime/Input/TouchInputSource.cs` | HID 마우스/터치 → `InputHit` |
 | `Assets/Core/Runtime/BdsService.cs` | Check 중 ActiveInput = Touch(HID) |
