@@ -26,6 +26,8 @@ namespace PinkSoft.Core.Lobby
         [SerializeField] Text[] partySlotTexts = System.Array.Empty<Text>();
         [SerializeField] Image[] partySlotBackgrounds = System.Array.Empty<Image>();
         [SerializeField] GameObject[] partySlotRoots = System.Array.Empty<GameObject>();
+        [SerializeField] RawImage[] partySlotPortraits = System.Array.Empty<RawImage>();
+        [SerializeField] Texture2D nobodyPortraitTexture = null!;
         [SerializeField] PinkSoftApiClient apiClient = null!;
         [SerializeField] bool allowOfflineClearance = true;
 
@@ -44,10 +46,12 @@ namespace PinkSoft.Core.Lobby
         [SerializeField] string bdsCheckSceneName = "BdsCheck";
 
         bool _busy;
+        Texture2D? _nobodyPortraitResolved;
 
         void Awake()
         {
             EnsureAgentSession();
+            EnsurePortraitBindings();
 
             if (apiClient == null)
                 apiClient = FindAnyObjectByType<PinkSoftApiClient>();
@@ -124,9 +128,12 @@ namespace PinkSoft.Core.Lobby
 
         void RefreshPartyListUi(AgentSession? session)
         {
+            EnsurePortraitBindings();
+
             var filled = new Color(0.16f, 0.22f, 0.28f, 0.85f);
             var filledText = new Color(0.95f, 0.94f, 0.92f, 1f);
             var nobodyAccent = new Color(0.95f, 0.72f, 0.55f, 1f);
+            var portrait = ResolveNobodyPortrait();
 
             for (var i = 0; i < AgentSession.MaxAgents; i++)
             {
@@ -136,24 +143,122 @@ namespace PinkSoft.Core.Lobby
                     partySlotRoots[i].SetActive(occupied);
 
                 if (!occupied)
+                {
+                    if (i < partySlotPortraits.Length && partySlotPortraits[i] != null)
+                        partySlotPortraits[i].enabled = false;
                     continue;
+                }
 
                 if (i < partySlotBackgrounds.Length && partySlotBackgrounds[i] != null)
                     partySlotBackgrounds[i].color = filled;
 
-                if (i >= partySlotTexts.Length || partySlotTexts[i] == null)
+                var slot = session!.Party[i];
+                var isNobody = slot.IsNobody;
+
+                if (i < partySlotTexts.Length && partySlotTexts[i] != null)
+                {
+                    if (isNobody)
+                    {
+                        partySlotTexts[i].text = "Nobody\nGuest · 기본값";
+                        partySlotTexts[i].color = nobodyAccent;
+                    }
+                    else
+                    {
+                        partySlotTexts[i].text = $"{slot.User.nickname}\nLv.{slot.User.currentLevel}";
+                        partySlotTexts[i].color = filledText;
+                    }
+                }
+
+                if (i < partySlotPortraits.Length && partySlotPortraits[i] != null)
+                {
+                    if (isNobody && portrait != null)
+                    {
+                        partySlotPortraits[i].texture = portrait;
+                        partySlotPortraits[i].enabled = true;
+                        partySlotPortraits[i].color = Color.white;
+                    }
+                    else
+                    {
+                        partySlotPortraits[i].enabled = false;
+                    }
+                }
+            }
+        }
+
+        Texture2D? ResolveNobodyPortrait()
+        {
+            if (nobodyPortraitTexture != null)
+                return nobodyPortraitTexture;
+
+            if (_nobodyPortraitResolved == null)
+                _nobodyPortraitResolved = Resources.Load<Texture2D>("PartyPortrait/NobodyPortrait");
+
+            return _nobodyPortraitResolved;
+        }
+
+        void EnsurePortraitBindings()
+        {
+            if (partySlotPortraits == null || partySlotPortraits.Length != AgentSession.MaxAgents)
+                partySlotPortraits = new RawImage[AgentSession.MaxAgents];
+
+            for (var i = 0; i < AgentSession.MaxAgents; i++)
+            {
+                if (i >= partySlotRoots.Length || partySlotRoots[i] == null)
                     continue;
 
-                var slot = session!.Party[i];
-                if (slot.IsNobody)
+                var root = partySlotRoots[i];
+
+                // 기존 씬의 얇은 파티 바를 초상 카드 높이로 확장
+                var partyPanel = root.transform.parent != null ? root.transform.parent.parent as RectTransform : null;
+                if (partyPanel != null && partyPanel.name == "PartyPanel")
                 {
-                    partySlotTexts[i].text = "Nobody\nGuest · 기본값";
-                    partySlotTexts[i].color = nobodyAccent;
+                    partyPanel.anchorMin = new Vector2(0.05f, 2f / 3f - 0.16f);
+                    partyPanel.anchorMax = new Vector2(0.95f, 2f / 3f + 0.14f);
+                    partyPanel.offsetMin = Vector2.zero;
+                    partyPanel.offsetMax = Vector2.zero;
                 }
-                else
+
+                var le = root.GetComponent<LayoutElement>();
+                if (le != null)
                 {
-                    partySlotTexts[i].text = $"{slot.User.nickname}\nLv.{slot.User.currentLevel}";
-                    partySlotTexts[i].color = filledText;
+                    le.minWidth = 140;
+                    le.preferredWidth = 168;
+                    le.minHeight = 200;
+                    le.preferredHeight = 220;
+                }
+
+                if (partySlotPortraits[i] == null)
+                {
+                    var existing = root.transform.Find("Portrait");
+                    if (existing != null)
+                        partySlotPortraits[i] = existing.GetComponent<RawImage>();
+                }
+
+                if (partySlotPortraits[i] == null)
+                {
+                    var go = new GameObject("Portrait", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+                    go.transform.SetParent(root.transform, false);
+                    go.transform.SetAsFirstSibling();
+                    var rt = go.GetComponent<RectTransform>();
+                    rt.anchorMin = new Vector2(0.08f, 0.28f);
+                    rt.anchorMax = new Vector2(0.92f, 0.94f);
+                    rt.offsetMin = Vector2.zero;
+                    rt.offsetMax = Vector2.zero;
+                    var raw = go.GetComponent<RawImage>();
+                    raw.raycastTarget = false;
+                    raw.color = Color.white;
+                    partySlotPortraits[i] = raw;
+                }
+
+                if (i < partySlotTexts.Length && partySlotTexts[i] != null)
+                {
+                    var labelRt = partySlotTexts[i].rectTransform;
+                    labelRt.anchorMin = new Vector2(0.04f, 0.02f);
+                    labelRt.anchorMax = new Vector2(0.96f, 0.28f);
+                    labelRt.offsetMin = Vector2.zero;
+                    labelRt.offsetMax = Vector2.zero;
+                    partySlotTexts[i].alignment = TextAnchor.MiddleCenter;
+                    partySlotTexts[i].fontSize = 16;
                 }
             }
         }

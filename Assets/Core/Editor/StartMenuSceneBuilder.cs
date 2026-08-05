@@ -94,9 +94,9 @@ namespace PinkSoft.EditorTools
             Place(nobodyBtn.GetComponent<RectTransform>(), 0.53f, 0.30f, 0.73f, 0.38f);
             Object.DestroyImmediate(nobodyBtn.GetComponent<LayoutElement>());
 
-            // 화면 세로 2/3 · 가로 90% · 높이 20% — 반투명 테두리 파티 바 (빈 슬롯 없음, 가운데 정렬)
-            var partyYMin = 2f / 3f - 0.10f;
-            var partyYMax = 2f / 3f + 0.10f;
+            // 화면 중앙 — 초상 카드용으로 세로 대역 확대
+            var partyYMin = 2f / 3f - 0.16f;
+            var partyYMax = 2f / 3f + 0.14f;
             var partyPanel = CreateImage(identity.transform, "PartyPanel", new Color(0.08f, 0.10f, 0.12f, 0.22f));
             Place(partyPanel.rectTransform, 0.05f, partyYMin, 0.95f, partyYMax);
             var partyOutline = partyPanel.gameObject.AddComponent<Outline>();
@@ -106,10 +106,10 @@ namespace PinkSoft.EditorTools
 
             var slotsRoot = CreateImage(partyPanel.transform, "PartySlots", Color.clear);
             slotsRoot.raycastTarget = false;
-            Place(slotsRoot.rectTransform, 0.02f, 0.12f, 0.98f, 0.88f);
+            Place(slotsRoot.rectTransform, 0.02f, 0.08f, 0.98f, 0.92f);
             var slotsLayout = slotsRoot.gameObject.AddComponent<HorizontalLayoutGroup>();
-            slotsLayout.spacing = 14;
-            slotsLayout.padding = new RectOffset(12, 12, 4, 4);
+            slotsLayout.spacing = 16;
+            slotsLayout.padding = new RectOffset(12, 12, 6, 6);
             slotsLayout.childAlignment = TextAnchor.MiddleCenter;
             slotsLayout.childControlHeight = true;
             slotsLayout.childControlWidth = true;
@@ -119,24 +119,41 @@ namespace PinkSoft.EditorTools
             var slotTexts = new Text[4];
             var slotBgs = new Image[4];
             var slotRoots = new GameObject[4];
+            var slotPortraits = new RawImage[4];
             var chipFace = new Color(0.16f, 0.22f, 0.28f, 0.85f);
             for (var i = 0; i < 4; i++)
             {
                 var slotGo = new GameObject($"PartySlot{i + 1}", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
                 slotGo.transform.SetParent(slotsRoot.transform, false);
                 var le = slotGo.GetComponent<LayoutElement>();
-                le.minWidth = 160;
-                le.preferredWidth = 180;
-                le.minHeight = 64;
-                le.preferredHeight = 72;
+                le.minWidth = 140;
+                le.preferredWidth = 168;
+                le.minHeight = 200;
+                le.preferredHeight = 220;
                 var bg = slotGo.GetComponent<Image>();
                 bg.color = chipFace;
                 slotBgs[i] = bg;
                 slotRoots[i] = slotGo;
                 slotGo.SetActive(false);
 
-                var label = CreateText(slotGo.transform, "Label", "", 18, TextPrimary, FontStyle.Bold);
-                Stretch(label.rectTransform);
+                var portraitGo = new GameObject("Portrait", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+                portraitGo.transform.SetParent(slotGo.transform, false);
+                var portraitRt = portraitGo.GetComponent<RectTransform>();
+                portraitRt.anchorMin = new Vector2(0.08f, 0.28f);
+                portraitRt.anchorMax = new Vector2(0.92f, 0.94f);
+                portraitRt.offsetMin = Vector2.zero;
+                portraitRt.offsetMax = Vector2.zero;
+                var portrait = portraitGo.GetComponent<RawImage>();
+                portrait.raycastTarget = false;
+                portrait.color = Color.white;
+                slotPortraits[i] = portrait;
+
+                var label = CreateText(slotGo.transform, "Label", "", 16, TextPrimary, FontStyle.Bold);
+                var labelRt = label.rectTransform;
+                labelRt.anchorMin = new Vector2(0.04f, 0.02f);
+                labelRt.anchorMax = new Vector2(0.96f, 0.28f);
+                labelRt.offsetMin = Vector2.zero;
+                labelRt.offsetMax = Vector2.zero;
                 label.alignment = TextAnchor.MiddleCenter;
                 slotTexts[i] = label;
             }
@@ -254,13 +271,20 @@ namespace PinkSoft.EditorTools
             slotBgsProp.arraySize = 4;
             var slotRootsProp = so.FindProperty("partySlotRoots");
             slotRootsProp.arraySize = 4;
+            var slotPortraitsProp = so.FindProperty("partySlotPortraits");
+            slotPortraitsProp.arraySize = 4;
             for (var i = 0; i < 4; i++)
             {
                 slotTextsProp.GetArrayElementAtIndex(i).objectReferenceValue = slotTexts[i];
                 slotBgsProp.GetArrayElementAtIndex(i).objectReferenceValue = slotBgs[i];
                 slotRootsProp.GetArrayElementAtIndex(i).objectReferenceValue = slotRoots[i];
+                slotPortraitsProp.GetArrayElementAtIndex(i).objectReferenceValue = slotPortraits[i];
             }
             so.FindProperty("apiClient").objectReferenceValue = api;
+            var nobodyPortrait = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Art/PartyPortrait/NobodyPortrait.png")
+                ?? AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/PartyPortrait/NobodyPortrait.png");
+            if (nobodyPortrait != null)
+                so.FindProperty("nobodyPortraitTexture").objectReferenceValue = nobodyPortrait;
             so.FindProperty("allowOfflineClearance").boolValue = true;
             so.FindProperty("selectMissionButton").objectReferenceValue = missionBtn;
             so.FindProperty("quitButton").objectReferenceValue = quitBtn;
