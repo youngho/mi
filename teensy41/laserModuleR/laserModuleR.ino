@@ -50,6 +50,8 @@
  *      예: T1,4850,12345678  → θ1 = 48.50°
  *    R → L  M,1[,<hz>]\n / M,0\n  — Master 모터 start/stop 시 Slave 동기
  *      (running 중 2초마다 M,1 재전송 → L 늦게 켜져도 따라옴)
+ *    R → L  P,<nonce>\n           — 링크 ping (R USB `ping` 명령)
+ *    L → R  P,<nonce>\n           — ping echo (양방향·GND 확인용)
  *
  * 5) 삼각측량
  *    tan(θ1)=Y/X , tan(θ2)=Y/(W-X)
@@ -162,9 +164,15 @@ static uint32_t g_lastMotorSyncMs = 0;
 
 // Slave(L) 모터 동기 주기 — L이 늦게 켜져도 따라오도록 running 중 재전송
 static const uint32_t MOTOR_SYNC_PERIOD_MS = 2000;
+static const uint32_t LINK_PING_TIMEOUT_MS = 300;
 static bool g_lastHit = false;
 static bool g_sensorReady = false;
 static bool g_laserOn = false;
+
+// UART ping (R USB `ping` → L echo)
+static bool g_linkPongPending = false;
+static uint32_t g_linkPongNonce = 0;
+static bool g_linkPongGot = false;
 
 static volatile uint32_t g_syncUs = 0;
 static volatile uint32_t g_periodUs = 0;
@@ -450,7 +458,7 @@ static void pollSensor()
   }
 }
 
-// Serial1: T1,<centideg>,<t_us>\n
+// Serial1: T1,<centideg>,<t_us>\n  /  P,<nonce>\n (pong)
 static void handleLinkSerial()
 {
   static String line;
@@ -480,11 +488,49 @@ static void handleLinkSerial()
       } else {
         Serial.printf("[link] bad packet: %s\n", line.c_str());
       }
+    } else if (line.startsWith("P,")) {
+      const uint32_t nonce = (uint32_t)line.substring(2).toInt();
+      if (g_linkPongPending && nonce == g_linkPongNonce) {
+        g_linkPongGot = true;
+      }
+      Serial.printf("[link] RX P,%lu (pong)\n", (unsigned long)nonce);
     } else if (line.length() > 0) {
       Serial.printf("[link] ignore: %s\n", line.c_str());
     }
     line = "";
   }
+}
+
+// R USB만으로 L UART 왕복 확인: P,<nonce> → echo
+static void runLinkPing()
+{
+  g_linkPongGot = false;
+  g_linkPongNonce = (millis() & 0xFFFFUL);
+  if (g_linkPongNonce == 0) {
+    g_linkPongNonce = 1;
+  }
+  g_linkPongPending = true;
+
+  Serial1.printf("P,%lu\n", (unsigned long)g_linkPongNonce);
+  Serial.printf("[cmd] ping 송신 P,%lu → Slave (timeout %lu ms)\n",
+                (unsigned long)g_linkPongNonce,
+                (unsigned long)LINK_PING_TIMEOUT_MS);
+
+  const uint32_t t0 = millis();
+  while ((millis() - t0) < LINK_PING_TIMEOUT_MS) {
+    handleLinkSerial();
+    if (g_linkPongGot) {
+      Serial.printf("[link] OK  L 응답 (%lu ms) — TX/RX/GND 정상\n",
+                    (unsigned long)(millis() - t0));
+      g_linkPongPending = false;
+      return;
+    }
+  }
+
+  g_linkPongPending = false;
+  Serial.println("[link] FAIL  응답 없음");
+  Serial.println("       확인: R Pin1→L Pin0, R Pin0←L Pin1, GND공통,");
+  Serial.println("             L 전원 ON, L에 최신 laserModuleL 업로드");
 }
 
 static void printHelp()
@@ -500,6 +546,7 @@ static void printHelp()
   Serial.println("  theta2 <deg>    - 수동 θ2 + 최신 θ1 로 삼각측량 테스트");
   Serial.println("  inject <t1> <t2>- θ1·θ2 수동 삼각측량 (UART 없이)");
   Serial.println("  hid on|off      - USB HID 출력 토글");
+  Serial.println("  ping            - UART 왕복 확인 (R만으로 L 통신 테스트)");
   Serial.println("  help            - this help");
   Serial.println();
 }
@@ -528,6 +575,8 @@ static void handleSerial()
     } else if (lower == "stop") {
       Serial.println("[cmd] stop 수신");
       motorStop();
+    } else if (lower == "ping") {
+      runLinkPing();
     } else if (lower == "status") {
       Serial.println("[cmd] status 수신");
       Serial.printf("[status] running=%d locked=%d clk=%lu Hz hit=%d "
@@ -677,12 +726,12 @@ void setup()
   Serial.println("laserModuleR / Node B (Master) ready");
   Serial.println("USB Type must be Keyboard+Mouse+Joystick for HID");
   Serial.println("Power: LM2596 5V→VIN, GND공통 / Laser: 3.3V→RED, Pin9→NPN→BLACK");
-  Serial.println("UART ↔ Slave: RX1(0)/TX1(1)/GND — RX T1,... / TX M,1|M,0");
+  Serial.println("UART ↔ Slave: RX1(0)/TX1(1)/GND — RX T1,... / TX M,1|M,0 / ping");
   printHelp();
   Serial.println("Wire V=24V(external), G=GND common, then: laser on / start");
   Serial.println("R start → L도 UART로 자동 start (2초마다 M,1 재전송)");
-  Serial.println("통신 테스트: Left에서 `theta 48.5` → Right에서 `theta2 52.1`");
-  Serial.println("또는 Right만: `inject 48.5 52.1`");
+  Serial.println("통신 확인(R만): `ping`  →  [link] OK 면 L 연결 정상");
+  Serial.println("또는: Left `theta 48.5` / Right `inject 48.5 52.1`");
   Serial.println("[stage] ===== setup 완료 =====");
 }
 

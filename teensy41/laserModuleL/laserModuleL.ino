@@ -39,6 +39,8 @@
  *    R → L  M,1[,<hz>]\n  모터 기동 동기 (hz 생략 시 L 현재/기본 CLK)
  *           M,0\n         모터 정지 동기
  *      ※ USB 시리얼 start/stop 도 그대로 사용 가능 (로컬 우선)
+ *    R → L  P,<nonce>\n   링크 ping
+ *    L → R  P,<nonce>\n   ping echo (동일 nonce 반환)
  *
  * 5) 삼각측량 (Master 측)
  *    tan(θ1)=Y/X , tan(θ2)=Y/(W-X)
@@ -342,7 +344,7 @@ static void pollSensor()
   }
 }
 
-// Serial1: Master → Slave 모터 동기 M,1[,hz] / M,0
+// Serial1: Master → Slave 모터 동기 M,1[,hz] / M,0  /  ping P,<nonce>
 static void handleLinkSerial()
 {
   static String line;
@@ -381,6 +383,15 @@ static void handleLinkSerial()
       } else {
         Serial.printf("[link] bad motor sync: %s\n", line.c_str());
       }
+    } else if (line == "P" || line.startsWith("P,")) {
+      // Master ping → 동일 라인 echo (P,<nonce>)
+      if (line == "P") {
+        Serial1.print("P,ok\n");
+        Serial.println("[link] RX ping → TX P,ok");
+      } else {
+        Serial1.printf("%s\n", line.c_str());
+        Serial.printf("[link] RX ping → TX %s\n", line.c_str());
+      }
     } else if (line.length() > 0) {
       Serial.printf("[link] ignore: %s\n", line.c_str());
     }
@@ -400,7 +411,7 @@ static void printHelp()
   Serial.println("  laser on|off   - 650nm 라인 레이저 (Pin9 → NPN)");
   Serial.println("  theta <deg>    - 수동 θ1 송신 (UART 테스트용)");
   Serial.println("  help           - this help");
-  Serial.println("  (also) Master R start/stop → UART M,1 / M,0 자동 동기");
+  Serial.println("  (also) Master R: start/stop→M,1|M,0 / ping→P,<n> echo");
   Serial.println();
 }
 
