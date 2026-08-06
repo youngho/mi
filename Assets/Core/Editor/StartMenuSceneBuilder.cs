@@ -57,8 +57,27 @@ namespace PinkSoft.EditorTools
             scaler.referenceResolution = new Vector2(1920, 1080);
             scaler.matchWidthOrHeight = 0.5f;
 
-            var backdrop = CreateImage(canvasGo.transform, "Backdrop", Bg);
+            var backdrop = CreateImage(canvasGo.transform, "Backdrop", Color.white);
             Stretch(backdrop.rectTransform);
+            backdrop.raycastTarget = false;
+            var sceneBg = AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/Core/Runtime/Lobby/UI/rendezvous_scene_bg.png");
+            if (sceneBg != null)
+            {
+                backdrop.sprite = sceneBg;
+                backdrop.type = Image.Type.Simple;
+                backdrop.preserveAspect = false;
+                backdrop.color = Color.white;
+            }
+            else
+            {
+                backdrop.color = Bg;
+            }
+
+            // 가독성용 약한 딤 (배경 위 UI)
+            var dim = CreateImage(canvasGo.transform, "BackdropDim", new Color(0.02f, 0.03f, 0.04f, 0.28f));
+            Stretch(dim.rectTransform);
+            dim.raycastTarget = false;
 
             var identity = CreateImage(canvasGo.transform, "IdentityPanel", Color.clear);
             identity.raycastTarget = false;
@@ -114,13 +133,23 @@ namespace PinkSoft.EditorTools
             codePhonetic.font = TypewriterCodeLabel.ResolveTypewriterFont();
             codePhonetic.fontSize = 15;
 
-            // 2) 파티 — 메인
-            var partyPanel = CreateImage(identity.transform, "PartyPanel", new Color(0.08f, 0.10f, 0.12f, 0.22f));
+            // 2) 파티 — 메인 (프로스트 글래스 + 얇은 메탈 프레임 믹스)
+            var partyPanel = CreateImage(identity.transform, "PartyPanel", Color.white);
             Place(partyPanel.rectTransform, 0.08f, 0.48f, 0.92f, 0.82f);
-            var partyOutline = partyPanel.gameObject.AddComponent<Outline>();
-            partyOutline.effectColor = new Color(0.78f, 0.82f, 0.86f, 0.40f);
-            partyOutline.effectDistance = new Vector2(2f, -2f);
-            partyOutline.useGraphicAlpha = true;
+            partyPanel.raycastTarget = false;
+            var partyBg = AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/Core/Runtime/Lobby/UI/party_panel_bg.png");
+            if (partyBg != null)
+            {
+                partyPanel.sprite = partyBg;
+                partyPanel.type = Image.Type.Simple;
+                partyPanel.color = Color.white;
+                partyPanel.preserveAspect = false;
+            }
+            else
+            {
+                partyPanel.color = new Color(0.08f, 0.10f, 0.12f, 0.45f);
+            }
 
             var slotsRoot = CreateImage(partyPanel.transform, "PartySlots", Color.clear);
             slotsRoot.raycastTarget = false;
