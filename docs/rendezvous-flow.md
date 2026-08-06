@@ -21,7 +21,8 @@
 | **BDS Check** | Clearance·Station 공통 우측 상단 특수 버튼 |
 | **Agent Presence** | BLE·카메라 등으로 요원이 **해당 타석/접선 지점에 와 있는지** 확인 (**예정**) |
 | **missionId** | 카탈로그 **콘텐츠** ID (어떤 미션인가). 영구 |
-| **partyId** | 이번 접선 파티 ID. Clearance~해제 (**예정**) |
+| **partyId** | 내부 접선 파티 UUID (API/DB). 유저 비표시 |
+| **rendezvousCode** | 5자 집결 코드 (예: `AT3EC`). Rendezvous 진입 즉시 표시·무전 |
 | **runId** | **이번 미션 플레이 1회** ID. 시작~complete (**예정**) |
 | **bayId** / **deviceId** | 타석·키오스크 고정 ID (**예정**, Presence·Run에 재사용) |
 | **presenceSessionId** | 앱↔타석 현장 매칭 세션. 수 분 (**예정**, Agent Presence) |

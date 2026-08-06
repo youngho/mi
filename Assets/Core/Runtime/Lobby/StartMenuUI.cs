@@ -29,6 +29,10 @@ namespace PinkSoft.Core.Lobby
         [SerializeField] PinkSoftApiClient apiClient = null!;
         [SerializeField] bool allowOfflineClearance = true;
         [SerializeField] string bayId = "bay-local-1";
+        [SerializeField] Text rendezvousCodeText = null!;
+        [SerializeField] Text rendezvousPhoneticText = null!;
+        [SerializeField] TypewriterCodeLabel typewriterCodeLabel = null!;
+        [SerializeField] RadioAnnouncer radioAnnouncer = null!;
 
         [Header("Shared HUD")]
         [SerializeField] GameObject statusToast = null!;
@@ -45,6 +49,7 @@ namespace PinkSoft.Core.Lobby
             var session = AgentSession.Ensure();
             session.SetBayId(bayId);
             session.LeaveStation();
+            var code = session.EnsureRendezvousCode();
 
             // 씬에 붙은 ApiClient 설정을 DDOL 인스턴스로 흡수
             var sharedApi = PinkSoftApiClient.EnsureOn(session.gameObject);
@@ -67,6 +72,32 @@ namespace PinkSoft.Core.Lobby
 
             WireButtons();
             RefreshFlow();
+            RefreshRendezvousCodeUi(code);
+
+            var sessionRadio = session.GetComponent<RadioAnnouncer>()
+                               ?? session.gameObject.AddComponent<RadioAnnouncer>();
+            var toastGo = GameObject.Find("RadioToast");
+            Text? toastLabel = null;
+            if (toastGo != null)
+            {
+                var t = toastGo.transform.Find("RadioText");
+                toastLabel = t != null ? t.GetComponent<Text>() : toastGo.GetComponentInChildren<Text>();
+            }
+
+            sessionRadio.BindUi(toastGo, toastLabel);
+            radioAnnouncer = sessionRadio;
+            radioAnnouncer.AnnounceRendezvous(code);
+        }
+
+        void RefreshRendezvousCodeUi(string code)
+        {
+            if (typewriterCodeLabel != null)
+                typewriterCodeLabel.SetCode(code);
+            else if (rendezvousCodeText != null)
+                rendezvousCodeText.text = code;
+
+            if (rendezvousPhoneticText != null)
+                rendezvousPhoneticText.text = RendezvousCode.ToPhoneticLine(code);
         }
 
         void WireButtons()
@@ -414,11 +445,13 @@ namespace PinkSoft.Core.Lobby
         {
             var members = BuildPartyMemberRequests(session);
             PinkSoftApiClient.PartyResponse? party = null;
-            yield return api.CreateParty(session.BayId, members, res => party = res);
+            yield return api.CreateParty(session.BayId, session.RendezvousCodeValue, members, res => party = res);
 
             if (party != null && !string.IsNullOrEmpty(party.partyId))
             {
                 session.SetServerPartyId(party.partyId);
+                if (!string.IsNullOrEmpty(party.rendezvousCode))
+                    session.SetRendezvousCode(party.rendezvousCode);
                 FinishEnterStation(session, offline: false);
             }
             else if (allowOfflineClearance)
@@ -439,8 +472,8 @@ namespace PinkSoft.Core.Lobby
         {
             _busy = false;
             ShowStatus(offline
-                ? $"Station 이동 (로컬) — 파티 {session.PartyCount}명"
-                : $"Station 이동 — party · {session.PartyCount}명");
+                ? $"Station 이동 (로컬) · {session.RendezvousCodeValue}"
+                : $"Station 이동 · {session.RendezvousCodeValue}");
             session.EnterStationAndLoadScene();
         }
 

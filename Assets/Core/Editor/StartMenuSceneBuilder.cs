@@ -64,16 +64,68 @@ namespace PinkSoft.EditorTools
             identity.raycastTarget = false;
             Stretch(identity.rectTransform);
 
-            var idTitle = CreateText(identity.transform, "ClearanceTitle", "AGENT CLEARANCE", 34, Accent, FontStyle.Bold);
-            Place(idTitle.rectTransform, 0.08f, 0.88f, 0.55f, 0.96f);
+            var idTitle = CreateText(identity.transform, "ClearanceTitle", "AGENT CLEARANCE", 28, Accent, FontStyle.Bold);
+            Place(idTitle.rectTransform, 0.08f, 0.78f, 0.50f, 0.84f);
             idTitle.alignment = TextAnchor.MiddleLeft;
 
-            var idSub = CreateText(identity.transform, "ClearanceSub", "최대 4명까지 접선 후 Station에 진입합니다. 회원가입은 앱에서 해주세요.", 20, TextMuted, FontStyle.Normal);
-            Place(idSub.rectTransform, 0.08f, 0.82f, 0.55f, 0.88f);
+            var idSub = CreateText(identity.transform, "ClearanceSub", "최대 4명까지 접선 후 Station에 진입합니다. 회원가입은 앱에서 해주세요.", 18, TextMuted, FontStyle.Normal);
+            Place(idSub.rectTransform, 0.08f, 0.72f, 0.55f, 0.78f);
             idSub.alignment = TextAnchor.MiddleLeft;
 
+            // 집결 코드 — 상단 중앙, 찢어진 리본테이프 + 타자기 잉크
+            var codePanel = CreateImage(identity.transform, "RendezvousCodePanel", Color.white);
+            Place(codePanel.rectTransform, 0.31f, 0.86f, 0.69f, 0.995f);
+            codePanel.raycastTarget = false;
+            var ribbonSprite = AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/Core/Runtime/Lobby/UI/rendezvous_ribbon_tape.png");
+            if (ribbonSprite != null)
+            {
+                codePanel.sprite = ribbonSprite;
+                codePanel.type = Image.Type.Simple;
+                codePanel.preserveAspect = true;
+                codePanel.color = Color.white;
+            }
+            else
+            {
+                codePanel.color = new Color(0.82f, 0.74f, 0.58f, 0.92f); // 바랜 종이 폴백
+            }
+
+            var codeRt = codePanel.rectTransform;
+            codeRt.localRotation = Quaternion.Euler(0f, 0f, -2.2f);
+
+            var stamp = CreateText(codePanel.transform, "CodeLabel", "RENDEZVOUS", 13,
+                new Color(0.35f, 0.22f, 0.16f, 0.55f), FontStyle.Bold);
+            Place(stamp.rectTransform, 0.08f, 0.72f, 0.92f, 0.92f);
+            stamp.alignment = TextAnchor.MiddleCenter;
+            stamp.font = TypewriterCodeLabel.ResolveTypewriterFont();
+
+            var glyphRootGo = new GameObject("TypewriterGlyphs", typeof(RectTransform));
+            glyphRootGo.transform.SetParent(codePanel.transform, false);
+            Place(glyphRootGo.GetComponent<RectTransform>(), 0.08f, 0.18f, 0.92f, 0.78f);
+            var typewriter = glyphRootGo.AddComponent<TypewriterCodeLabel>();
+            var twSo = new SerializedObject(typewriter);
+            twSo.FindProperty("glyphRoot").objectReferenceValue = glyphRootGo.GetComponent<RectTransform>();
+            twSo.FindProperty("typewriterFont").objectReferenceValue = TypewriterCodeLabel.ResolveTypewriterFont();
+            twSo.FindProperty("fontSize").intValue = 56;
+            twSo.FindProperty("inkColor").colorValue = new Color(0.16f, 0.12f, 0.09f, 0.9f);
+            twSo.FindProperty("letterSpacing").floatValue = 8f;
+            twSo.ApplyModifiedPropertiesWithoutUndo();
+            typewriter.SetCode("-----");
+
+            // 레거시 바인딩용 숨김 Text (호환)
+            var codeValue = CreateText(codePanel.transform, "CodeValue", "-----", 8,
+                new Color(0, 0, 0, 0), FontStyle.Normal);
+            Place(codeValue.rectTransform, 0f, 0f, 0.01f, 0.01f);
+
+            var codePhonetic = CreateText(codePanel.transform, "CodePhonetic", "", 14,
+                new Color(0.32f, 0.26f, 0.20f, 0.75f), FontStyle.Normal);
+            Place(codePhonetic.rectTransform, 0.06f, 0.02f, 0.94f, 0.22f);
+            codePhonetic.alignment = TextAnchor.MiddleCenter;
+            codePhonetic.font = TypewriterCodeLabel.ResolveTypewriterFont();
+            codePhonetic.fontSize = 15;
+
             var fieldBg = CreateImage(identity.transform, "CallsignField", FieldFace);
-            Place(fieldBg.rectTransform, 0.31f, 0.40f, 0.65f, 0.48f);
+            Place(fieldBg.rectTransform, 0.31f, 0.34f, 0.65f, 0.42f);
             var input = fieldBg.gameObject.AddComponent<InputField>();
             var placeholder = CreateText(fieldBg.transform, "Placeholder", "콜사인 입력", 26, TextMuted, FontStyle.Italic);
             Stretch(placeholder.rectTransform);
@@ -87,16 +139,16 @@ namespace PinkSoft.EditorTools
             input.characterLimit = 24;
 
             var confirmBtn = CreateButton(identity.transform, "신원 확인", Accent);
-            Place(confirmBtn.GetComponent<RectTransform>(), 0.31f, 0.30f, 0.51f, 0.38f);
+            Place(confirmBtn.GetComponent<RectTransform>(), 0.31f, 0.24f, 0.51f, 0.32f);
             Object.DestroyImmediate(confirmBtn.GetComponent<LayoutElement>());
 
             var nobodyBtn = CreateButton(identity.transform, "Nobody 추가", ButtonFace);
-            Place(nobodyBtn.GetComponent<RectTransform>(), 0.53f, 0.30f, 0.73f, 0.38f);
+            Place(nobodyBtn.GetComponent<RectTransform>(), 0.53f, 0.24f, 0.73f, 0.32f);
             Object.DestroyImmediate(nobodyBtn.GetComponent<LayoutElement>());
 
-            // 화면 중앙 — 초상 카드용으로 세로 대역 확대
-            var partyYMin = 2f / 3f - 0.16f;
-            var partyYMax = 2f / 3f + 0.14f;
+            // 화면 중앙 — 초상 카드
+            var partyYMin = 0.44f;
+            var partyYMax = 0.68f;
             var partyPanel = CreateImage(identity.transform, "PartyPanel", new Color(0.08f, 0.10f, 0.12f, 0.22f));
             Place(partyPanel.rectTransform, 0.05f, partyYMin, 0.95f, partyYMax);
             var partyOutline = partyPanel.gameObject.AddComponent<Outline>();
@@ -159,11 +211,11 @@ namespace PinkSoft.EditorTools
             }
 
             var enterBtn = CreateButton(identity.transform, "Station 진입", Accent);
-            Place(enterBtn.GetComponent<RectTransform>(), 0.08f, 0.22f, 0.36f, 0.34f);
+            Place(enterBtn.GetComponent<RectTransform>(), 0.08f, 0.14f, 0.28f, 0.22f);
             Object.DestroyImmediate(enterBtn.GetComponent<LayoutElement>());
 
             var idStatus = CreateText(identity.transform, "IdentityStatus", "기존 콜사인으로 신원 확인하거나 Nobody를 추가하세요. 회원가입은 앱에서 해주세요.", 18, TextMuted, FontStyle.Normal);
-            Place(idStatus.rectTransform, 0.08f, 0.12f, 0.55f, 0.20f);
+            Place(idStatus.rectTransform, 0.08f, 0.06f, 0.55f, 0.14f);
             idStatus.alignment = TextAnchor.UpperLeft;
 
             var toast = CreateImage(canvasGo.transform, "StatusToast", AccentDim);
@@ -173,10 +225,21 @@ namespace PinkSoft.EditorTools
             statusText.alignment = TextAnchor.MiddleCenter;
             toast.gameObject.SetActive(false);
 
+            // 무전 자막
+            var radioToast = CreateImage(canvasGo.transform, "RadioToast", new Color(0.12f, 0.10f, 0.08f, 0.94f));
+            Place(radioToast.rectTransform, 0.12f, 0.42f, 0.88f, 0.58f);
+            var radioOutline = radioToast.gameObject.AddComponent<Outline>();
+            radioOutline.effectColor = new Color(0.85f, 0.55f, 0.25f, 0.7f);
+            radioOutline.effectDistance = new Vector2(2f, -2f);
+            var radioText = CreateText(radioToast.transform, "RadioText", "", 26, TextPrimary, FontStyle.Bold);
+            Stretch(radioText.rectTransform);
+            radioText.alignment = TextAnchor.MiddleCenter;
+            radioToast.gameObject.SetActive(false);
+
             // Clearance 공통 — 우측 상단 BDS Check 특수 버튼
             var bdsRoot = CreateImage(canvasGo.transform, "BdsCheckHud", Color.clear);
             bdsRoot.raycastTarget = false;
-            Place(bdsRoot.rectTransform, 0.78f, 0.86f, 0.98f, 0.98f);
+            Place(bdsRoot.rectTransform, 0.80f, 0.76f, 0.98f, 0.84f);
 
             var bdsFace = new Color(0.10f, 0.14f, 0.17f, 0.95f);
             var bdsBtnGo = new GameObject("BdsCheckButton", typeof(RectTransform), typeof(Image), typeof(Button));
@@ -244,6 +307,9 @@ namespace PinkSoft.EditorTools
             if (nobodyPortrait != null)
                 so.FindProperty("nobodyPortraitTexture").objectReferenceValue = nobodyPortrait;
             so.FindProperty("allowOfflineClearance").boolValue = true;
+            so.FindProperty("rendezvousCodeText").objectReferenceValue = codeValue;
+            so.FindProperty("rendezvousPhoneticText").objectReferenceValue = codePhonetic;
+            so.FindProperty("typewriterCodeLabel").objectReferenceValue = typewriter;
             so.FindProperty("statusToast").objectReferenceValue = toast.gameObject;
             so.FindProperty("statusText").objectReferenceValue = statusText;
             so.FindProperty("bdsCheckButton").objectReferenceValue = bdsBtn;

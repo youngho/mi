@@ -26,6 +26,8 @@ namespace PinkSoft.Core
         bool _atStation;
 
         public string? ServerPartyId { get; private set; }
+        /// <summary>표시·무전용 5자 집결 코드. 내부 ServerPartyId(UUID)와 별개.</summary>
+        public string RendezvousCodeValue { get; private set; } = "";
         public string? ActiveRunId { get; private set; }
         public string? ActiveMissionId { get; private set; }
         public string? ActiveMissionTitle { get; private set; }
@@ -74,6 +76,8 @@ namespace PinkSoft.Core
             Instance = this;
             DontDestroyOnLoad(gameObject);
             PinkSoftApiClient.EnsureOn(gameObject);
+            if (GetComponent<RadioAnnouncer>() == null)
+                gameObject.AddComponent<RadioAnnouncer>();
         }
 
         void OnDestroy()
@@ -210,6 +214,31 @@ namespace PinkSoft.Core
 
         public void SetServerPartyId(string? partyId) => ServerPartyId = partyId;
 
+        /// <summary>없으면 5자 집결 코드를 발급. Rendezvous 진입 시 호출.</summary>
+        public string EnsureRendezvousCode()
+        {
+            if (RendezvousCode.IsValid(RendezvousCodeValue))
+                return RendezvousCodeValue;
+            RendezvousCodeValue = RendezvousCode.Generate();
+            return RendezvousCodeValue;
+        }
+
+        public void SetRendezvousCode(string? code)
+        {
+            if (string.IsNullOrWhiteSpace(code))
+                return;
+            var n = RendezvousCode.Normalize(code);
+            if (RendezvousCode.IsValid(n))
+                RendezvousCodeValue = n;
+        }
+
+        /// <summary>클리어런스 해제 등으로 새 접선 세션을 열 때 코드 재발급.</summary>
+        public void RotateRendezvousCode()
+        {
+            RendezvousCodeValue = RendezvousCode.Generate();
+            RadioAnnouncer.ResetSessionFlag();
+        }
+
         public void SetActiveRun(string? runId, string? missionId, string? missionTitle)
         {
             ActiveRunId = runId;
@@ -232,6 +261,7 @@ namespace PinkSoft.Core
             ServerPartyId = null;
             LastAuthenticatedUserId = null;
             ClearActiveRun();
+            RotateRendezvousCode();
         }
 
         /// <summary>클리어런스 해제 후 접선 씬.</summary>
@@ -281,10 +311,16 @@ namespace PinkSoft.Core
 
         public string BuildPartySummary()
         {
-            if (_party.Count == 0)
-                return "등록된 에이전트 없음 (최대 4명)";
-
             var lines = new System.Text.StringBuilder();
+            if (!string.IsNullOrEmpty(RendezvousCodeValue))
+                lines.AppendLine($"집결코드  {RendezvousCodeValue}");
+
+            if (_party.Count == 0)
+            {
+                lines.Append("등록된 에이전트 없음 (최대 4명)");
+                return lines.ToString();
+            }
+
             lines.AppendLine($"준비 {_party.Count}/{MaxAgents}");
             for (var i = 0; i < _party.Count; i++)
             {
@@ -296,7 +332,7 @@ namespace PinkSoft.Core
             }
 
             if (!string.IsNullOrEmpty(ServerPartyId))
-                lines.AppendLine($"partyId  {ShortId(ServerPartyId)}");
+                lines.AppendLine($"내부ID  {ShortId(ServerPartyId)}");
             if (!string.IsNullOrEmpty(ActiveMissionId))
                 lines.AppendLine($"mission  {ActiveMissionTitle ?? ActiveMissionId}");
             if (!string.IsNullOrEmpty(ActiveRunId))

@@ -129,11 +129,12 @@ namespace PinkSoft.Core
             onComplete(JsonUtility.FromJson<CatalogResponse>(req.downloadHandler.text));
         }
 
-        public IEnumerator CreateParty(string? bayId, PartyMemberRequest[] members, Action<PartyResponse?> onComplete)
+        public IEnumerator CreateParty(string? bayId, string? rendezvousCode, PartyMemberRequest[] members, Action<PartyResponse?> onComplete)
         {
             var body = JsonUtility.ToJson(new CreatePartyRequest
             {
                 bayId = bayId ?? "",
+                rendezvousCode = rendezvousCode ?? "",
                 members = members ?? Array.Empty<PartyMemberRequest>()
             });
             using var req = PostJson(Api("/parties"), body, withAuth: true);
@@ -148,6 +149,9 @@ namespace PinkSoft.Core
 
             onComplete(JsonUtility.FromJson<PartyResponse>(req.downloadHandler.text));
         }
+
+        public IEnumerator CreateParty(string? bayId, PartyMemberRequest[] members, Action<PartyResponse?> onComplete)
+            => CreateParty(bayId, AgentSession.Instance?.RendezvousCodeValue, members, onComplete);
 
         public IEnumerator StartRun(string missionId, string? partyId, string? bayId, Action<RunResponse?> onComplete)
         {
@@ -288,6 +292,7 @@ namespace PinkSoft.Core
         class CreatePartyRequest
         {
             public string bayId = "";
+            public string rendezvousCode = "";
             public PartyMemberRequest[] members = Array.Empty<PartyMemberRequest>();
         }
 
@@ -296,6 +301,7 @@ namespace PinkSoft.Core
         {
             public string partyId = "";
             public string bayId = "";
+            public string rendezvousCode = "";
             public PartyMemberRequest[] members = Array.Empty<PartyMemberRequest>();
         }
 
