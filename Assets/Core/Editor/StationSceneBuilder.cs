@@ -146,16 +146,12 @@ namespace PinkSoft.EditorTools
             var sideButtons = CreateImage(side.transform, "SideButtons", Color.clear, stretch: false);
             sideButtons.raycastTarget = false;
             Place(sideButtons.rectTransform, 0.06f, 0.04f, 0.94f, 0.24f);
-            var hBtn = sideButtons.gameObject.AddComponent<HorizontalLayoutGroup>();
-            hBtn.spacing = 10;
-            hBtn.childControlHeight = true;
-            hBtn.childControlWidth = true;
-            hBtn.childForceExpandHeight = true;
-            hBtn.childForceExpandWidth = true;
             var logoutBtn = CreateButton(sideButtons.transform, "클리어런스 해제", ButtonFace);
-            var quitBtn = CreateButton(sideButtons.transform, "종료", ButtonFace);
-            logoutBtn.GetComponent<LayoutElement>().preferredHeight = 40;
-            quitBtn.GetComponent<LayoutElement>().preferredHeight = 40;
+            Object.DestroyImmediate(logoutBtn.GetComponent<LayoutElement>());
+            Stretch(logoutBtn.GetComponent<RectTransform>());
+
+            // 좌상단 IT식 빨간 원형 종료 — 실수 클릭 방지
+            var quitBtn = CreatePowerQuitButton(canvasGo.transform);
 
             // 미션 상세 (오른쪽 아래, 축소)
             var featured = CreateImage(canvasGo.transform, "FeaturedCard", Card, stretch: false);
@@ -332,6 +328,98 @@ namespace PinkSoft.EditorTools
             t.alignment = TextAnchor.MiddleCenter;
             t.raycastTarget = false;
             return btn;
+        }
+
+        /// <summary>좌상단 고정 픽셀 — 빨간 원형 전원(종료) 버튼.</summary>
+        static Button CreatePowerQuitButton(Transform canvas)
+        {
+            const float size = 52f;
+            var go = new GameObject("QuitButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            go.transform.SetParent(canvas, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0f, 1f);
+            rt.anchorMax = new Vector2(0f, 1f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(36f, -36f);
+            rt.sizeDelta = new Vector2(size, size);
+
+            var img = go.GetComponent<Image>();
+            img.sprite = EnsurePowerButtonSprite();
+            img.type = Image.Type.Simple;
+            img.preserveAspect = true;
+            img.color = Color.white;
+
+            var btn = go.GetComponent<Button>();
+            btn.targetGraphic = img;
+            var colors = btn.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1f, 0.88f, 0.88f, 1f);
+            colors.pressedColor = new Color(0.78f, 0.78f, 0.78f, 1f);
+            colors.selectedColor = Color.white;
+            btn.colors = colors;
+            return btn;
+        }
+
+        /// <summary>빨간 원 + 흰 전원 아이콘 스프라이트 (없으면 생성).</summary>
+        static Sprite EnsurePowerButtonSprite()
+        {
+            const string path = "Assets/Core/Runtime/Lobby/UI/quit_power_btn.png";
+            var existing = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+            if (existing != null)
+                return existing;
+
+            const int size = 128;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            var cx = (size - 1) * 0.5f;
+            var cy = (size - 1) * 0.5f;
+            var outerR = size * 0.5f - 2f;
+            var iconR = size * 0.28f;
+            var stroke = size * 0.055f;
+            var red = new Color(0.78f, 0.12f, 0.12f, 1f);
+            var white = Color.white;
+
+            for (var y = 0; y < size; y++)
+            {
+                for (var x = 0; x < size; x++)
+                {
+                    var dx = x - cx;
+                    var dy = y - cy;
+                    var d = Mathf.Sqrt(dx * dx + dy * dy);
+                    var aCircle = Mathf.Clamp01(outerR - d + 0.75f);
+                    if (aCircle <= 0f)
+                    {
+                        tex.SetPixel(x, y, Color.clear);
+                        continue;
+                    }
+
+                    // 전원 아이콘: 위쪽 막대 + 하단이 열린 원호
+                    var inStem = Mathf.Abs(dx) <= stroke && dy >= 0f && dy <= iconR * 0.95f;
+                    var ang = Mathf.Atan2(dy, dx) * Mathf.Rad2Deg; // -180..180, 위가 +90
+                    // 열린 구간: 위쪽 (±28°) 제외한 원호
+                    var onArcRing = Mathf.Abs(d - iconR) <= stroke * 1.15f;
+                    var inOpenGap = ang > 55f && ang < 125f;
+                    var inArc = onArcRing && !inOpenGap;
+
+                    var c = inStem || inArc ? white : red;
+                    c.a = aCircle;
+                    tex.SetPixel(x, y, c);
+                }
+            }
+
+            tex.Apply(false, false);
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+            System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
+            Object.DestroyImmediate(tex);
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.spritePixelsPerUnit = 100f;
+            importer.alphaIsTransparency = true;
+            importer.mipmapEnabled = false;
+            importer.npotScale = TextureImporterNPOTScale.None;
+            importer.SaveAndReimport();
+            return AssetDatabase.LoadAssetAtPath<Sprite>(path);
         }
 
         static void Stretch(RectTransform rt)
