@@ -1,18 +1,24 @@
 using System.Collections.Generic;
 using PinkSoft.MissionSDK;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace PinkSoft.Core
 {
     /// <summary>
-    /// 접선(Rendezvous) 파티 세션. 최대 4명까지 클리어런스/Nobody로 등록한 뒤
-    /// 별도 버튼으로 Station에 진입한다.
+    /// 접선 파티·런 상태를 씬 간에 유지하는 싱글톤 (DontDestroyOnLoad).
+    /// 미션/Station 등 어느 씬에서 <see cref="Require"/> 또는 <see cref="Instance"/>로 접근한다.
     /// </summary>
     public sealed class AgentSession : MonoBehaviour
     {
         public const int MaxAgents = 4;
         public const string NobodyUserIdPrefix = "nobody";
         public const string NobodyNickname = "Nobody";
+
+        public const string BootSceneName = "Boot";
+        public const string RendezvousSceneName = "Rendezvous";
+        public const string StationSceneName = "Station";
+        public const string BdsCheckSceneName = "BdsCheck";
 
         public static AgentSession? Instance { get; private set; }
 
@@ -23,6 +29,7 @@ namespace PinkSoft.Core
         public string? ActiveRunId { get; private set; }
         public string? ActiveMissionId { get; private set; }
         public string? ActiveMissionTitle { get; private set; }
+        public string BayId { get; private set; } = "bay-local-1";
 
         public IReadOnlyList<AgentSlot> Party => _party;
         public int PartyCount => _party.Count;
@@ -31,16 +38,18 @@ namespace PinkSoft.Core
         public bool IsAtStation => _atStation;
         public bool IsPartyFull => _party.Count >= MaxAgents;
 
-        /// <summary>호환용 — 파티 첫 번째 에이전트.</summary>
-        public RuntimeUserData? User => _party.Count > 0 ? _party[0].User : null;
+        /// <summary>파티 대표(첫 슬롯). Nobody면 시스템 기본값 사용.</summary>
+        public RuntimeUserData? LeadAgent => _party.Count > 0 ? _party[0].User : null;
 
-        /// <summary>첫 슬롯이 Nobody인지 (하위 호환).</summary>
+        /// <summary>호환용 — LeadAgent와 동일.</summary>
+        public RuntimeUserData? User => LeadAgent;
+
         public bool IsNobody => _party.Count > 0 && _party[0].IsNobody;
-
         public bool UsesSystemDefaults => IsNobody;
-
-        /// <summary>클리어런스 완료 여부 = 파티에 1명 이상 등록됨 (Station 진입과는 별개).</summary>
         public bool IsCleared => HasParty;
+
+        /// <summary>온라인 로그인에 성공한 마지막 요원 userId (토큰은 ApiClient).</summary>
+        public string? LastAuthenticatedUserId { get; private set; }
 
         public readonly struct AgentSlot
         {
@@ -64,6 +73,62 @@ namespace PinkSoft.Core
 
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            PinkSoftApiClient.EnsureOn(gameObject);
+        }
+
+        void OnDestroy()
+        {
+            if (Instance == this)
+                Instance = null;
+        }
+
+        /// <summary>없으면 생성. 모든 씬에서 안전하게 호출.</summary>
+        public static AgentSession Ensure()
+        {
+            if (Instance != null)
+            {
+                PinkSoftApiClient.EnsureOn(Instance.gameObject);
+                return Instance;
+            }
+
+            var go = new GameObject("AgentSession");
+            return go.AddComponent<AgentSession>();
+        }
+
+        /// <summary>필수 접근. 없으면 생성 후 반환.</summary>
+        public static AgentSession Require() => Ensure();
+
+        public static bool TryGet(out AgentSession session)
+        {
+            session = Instance!;
+            return Instance != null;
+        }
+
+        public bool TryGetSlot(int index, out AgentSlot slot)
+        {
+            if (index < 0 || index >= _party.Count)
+            {
+                slot = default;
+                return false;
+            }
+
+            slot = _party[index];
+            return true;
+        }
+
+        public bool TryGetByCallsign(string callsign, out AgentSlot slot)
+        {
+            for (var i = 0; i < _party.Count; i++)
+            {
+                if (string.Equals(_party[i].User.nickname, callsign, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    slot = _party[i];
+                    return true;
+                }
+            }
+
+            slot = default;
+            return false;
         }
 
         public enum AddResult
@@ -89,7 +154,6 @@ namespace PinkSoft.Core
                     return AddResult.DuplicateCallsign;
             }
 
-            // Nobody는 여러 명 가능 — 슬롯별 고유 userId
             if (isNobody)
             {
                 var n = CountNobody() + 1;
@@ -105,6 +169,18 @@ namespace PinkSoft.Core
 
         public AddResult TryAddNobody() => TryAddAgent(BuildNobodyUser(), isNobody: true);
 
+        public void SetBayId(string? bayId)
+        {
+            if (!string.IsNullOrWhiteSpace(bayId))
+                BayId = bayId.Trim();
+        }
+
+        public void NoteAuthenticatedUser(string? userId)
+        {
+            if (!string.IsNullOrEmpty(userId))
+                LastAuthenticatedUserId = userId;
+        }
+
         public void EnterStation()
         {
             if (!HasParty)
@@ -112,7 +188,25 @@ namespace PinkSoft.Core
             _atStation = true;
         }
 
+        /// <summary>파티 확정 후 Station 씬으로 이동.</summary>
+        public void EnterStationAndLoadScene()
+        {
+            EnterStation();
+            if (_atStation)
+                SceneManager.LoadScene(StationSceneName);
+        }
+
         public void LeaveStation() => _atStation = false;
+
+        /// <summary>접선 화면으로. 파티는 유지한 채 Station만 이탈할 때 사용.</summary>
+        public void ReturnToRendezvous(bool keepParty = true)
+        {
+            _atStation = false;
+            if (!keepParty)
+                Revoke();
+            ClearActiveRun();
+            SceneManager.LoadScene(RendezvousSceneName);
+        }
 
         public void SetServerPartyId(string? partyId) => ServerPartyId = partyId;
 
@@ -130,14 +224,26 @@ namespace PinkSoft.Core
             ActiveMissionTitle = null;
         }
 
-        /// <summary>파티 전체 해제 + Station 이탈 → 접선 화면으로.</summary>
+        /// <summary>파티 전체 해제. 씬 전환은 호출측에서.</summary>
         public void Revoke()
         {
             _party.Clear();
             _atStation = false;
             ServerPartyId = null;
+            LastAuthenticatedUserId = null;
             ClearActiveRun();
         }
+
+        /// <summary>클리어런스 해제 후 접선 씬.</summary>
+        public void RevokeAndReturnToRendezvous()
+        {
+            Revoke();
+            SceneManager.LoadScene(RendezvousSceneName);
+        }
+
+        /// <summary>BDS Check 종료 시 복귀할 씬.</summary>
+        public string ResolveBdsReturnScene() =>
+            _atStation ? StationSceneName : RendezvousSceneName;
 
         int CountNobody()
         {

@@ -108,7 +108,7 @@ namespace PinkSoft.Core
             Debug.Log($"Mission ended success={success} score={result.finalScore} stars={result.starsEarned}");
 
             var session = AgentSession.Instance;
-            var api = FindAnyObjectByType<PinkSoftApiClient>();
+            var api = PinkSoftApiClient.Instance;
             if (api == null || session == null || string.IsNullOrEmpty(session.ActiveMissionId))
                 return;
 

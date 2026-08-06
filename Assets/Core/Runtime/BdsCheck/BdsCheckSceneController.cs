@@ -512,7 +512,10 @@ namespace PinkSoft.Core.BdsCheck
             _acceptingHits = false;
             DetachInput();
             _bds?.ExitCalibrationMode();
-            SceneManager.LoadScene(returnSceneName);
+            var target = AgentSession.Instance != null
+                ? AgentSession.Instance.ResolveBdsReturnScene()
+                : returnSceneName;
+            SceneManager.LoadScene(target);
         }
     }
 }

@@ -7,9 +7,11 @@ using UnityEngine.Networking;
 
 namespace PinkSoft.Core
 {
-    /// <summary>pinkapi MI 모듈 클라이언트 (/mi/api/…).</summary>
+    /// <summary>pinkapi MI 모듈 클라이언트 (/mi/api/…). AgentSession과 함께 DDOL로 유지.</summary>
     public sealed class PinkSoftApiClient : MonoBehaviour
     {
+        public static PinkSoftApiClient? Instance { get; private set; }
+
         [SerializeField] string baseUrl = "http://localhost:8080";
         [SerializeField] string apiRoot = "/mi/api";
 
@@ -22,6 +24,57 @@ namespace PinkSoft.Core
         public string? UserId => _userId;
         public string? Nickname => _nickname;
         public string? LastRunId => _lastRunId;
+        public bool HasToken => !string.IsNullOrEmpty(_token);
+
+        public static PinkSoftApiClient EnsureOn(GameObject host)
+        {
+            if (Instance != null)
+                return Instance;
+
+            var existing = host.GetComponent<PinkSoftApiClient>();
+            if (existing != null)
+            {
+                Instance = existing;
+                return existing;
+            }
+
+            return host.AddComponent<PinkSoftApiClient>();
+        }
+
+        public void ApplySettings(string? url, string? root)
+        {
+            if (!string.IsNullOrWhiteSpace(url))
+                baseUrl = url.Trim().TrimEnd('/');
+            if (!string.IsNullOrWhiteSpace(root))
+                apiRoot = root.Trim();
+        }
+
+        public void CopySettingsFrom(PinkSoftApiClient other)
+        {
+            if (other == null || other == this)
+                return;
+            baseUrl = other.baseUrl;
+            apiRoot = other.apiRoot;
+        }
+
+        void Awake()
+        {
+            if (Instance != null && Instance != this)
+            {
+                // 씬에 붙은 설정만 흡수하고 컴포넌트는 제거
+                Instance.ApplySettings(baseUrl, apiRoot);
+                Destroy(this);
+                return;
+            }
+
+            Instance = this;
+        }
+
+        void OnDestroy()
+        {
+            if (Instance == this)
+                Instance = null;
+        }
 
         string Api(string path)
         {
@@ -54,6 +107,7 @@ namespace PinkSoft.Core
             _token = res.token;
             _userId = res.userId;
             _nickname = string.IsNullOrEmpty(res.nickname) ? nickname : res.nickname;
+            AgentSession.Instance?.NoteAuthenticatedUser(_userId);
             onComplete(true);
         }
 

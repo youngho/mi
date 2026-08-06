@@ -7,15 +7,13 @@ using UnityEngine.UI;
 namespace PinkSoft.Core.Lobby
 {
     /// <summary>
-    /// 접선(Clearance)에서 최대 4명 등록 → 별도 버튼으로 Station 진입.
-    /// Nobody는 Guest 콜사인으로 파티에 추가만 하며, Station으로 자동 전환하지 않는다.
-    /// BDS Check는 전용 씬으로 전환한다 (이 UI에서 검증 로직을 갖지 않음).
+    /// 접선(Clearance) 씬 UI. 파티 등록 후 Station 씬으로 전환한다.
+    /// 에이전트·API는 <see cref="AgentSession"/> / <see cref="PinkSoftApiClient"/> (DDOL)에 보관한다.
     /// </summary>
     public sealed class StartMenuUI : MonoBehaviour
     {
         [Header("Flow")]
         [SerializeField] GameObject identityPanel = null!;
-        [SerializeField] GameObject stationPanel = null!;
 
         [Header("Identity / Rendezvous")]
         [SerializeField] InputField callsignInput = null!;
@@ -31,34 +29,30 @@ namespace PinkSoft.Core.Lobby
         [SerializeField] PinkSoftApiClient apiClient = null!;
         [SerializeField] bool allowOfflineClearance = true;
         [SerializeField] string bayId = "bay-local-1";
-        [SerializeField] bool submitTestResultOnSelect = true;
 
-        [Header("Station")]
-        [SerializeField] Button selectMissionButton = null!;
-        [SerializeField] Button quitButton = null!;
-        [SerializeField] Button logoutButton = null!;
-        [SerializeField] Text stationAgentText = null!;
+        [Header("Shared HUD")]
         [SerializeField] GameObject statusToast = null!;
         [SerializeField] Text statusText = null!;
         [SerializeField] bool hideCursor;
-
-        [Header("System — always visible")]
         [SerializeField] Button bdsCheckButton = null!;
         [SerializeField] GameObject bdsCheckRoot = null!;
-        [SerializeField] string bdsCheckSceneName = "BdsCheck";
 
         bool _busy;
         Texture2D? _nobodyPortraitResolved;
-        PinkSoftApiClient.MissionMeta[] _catalog = System.Array.Empty<PinkSoftApiClient.MissionMeta>();
-        string _stationHint = "미션을 선택하세요.\n(BDS Check는 우측 상단)";
 
         void Awake()
         {
-            EnsureAgentSession();
-            EnsurePortraitBindings();
+            var session = AgentSession.Ensure();
+            session.SetBayId(bayId);
+            session.LeaveStation();
 
-            if (apiClient == null)
-                apiClient = FindAnyObjectByType<PinkSoftApiClient>();
+            // 씬에 붙은 ApiClient 설정을 DDOL 인스턴스로 흡수
+            var sharedApi = PinkSoftApiClient.EnsureOn(session.gameObject);
+            if (apiClient != null && apiClient != sharedApi)
+                sharedApi.CopySettingsFrom(apiClient);
+            apiClient = sharedApi;
+
+            EnsurePortraitBindings();
 
             if (hideCursor)
                 Cursor.visible = false;
@@ -66,17 +60,13 @@ namespace PinkSoft.Core.Lobby
             if (statusToast != null)
                 statusToast.SetActive(false);
 
+            // 구 StationPanel이 씬에 남아 있으면 숨김 (씬 분리 후)
+            var leftover = GameObject.Find("StationPanel");
+            if (leftover != null)
+                leftover.SetActive(false);
+
             WireButtons();
             RefreshFlow();
-        }
-
-        static void EnsureAgentSession()
-        {
-            if (AgentSession.Instance != null)
-                return;
-
-            var go = new GameObject("AgentSession");
-            go.AddComponent<AgentSession>();
         }
 
         void WireButtons()
@@ -84,10 +74,7 @@ namespace PinkSoft.Core.Lobby
             Bind(confirmIdentityButton, OnConfirmIdentity);
             Bind(nobodyButton, OnAddNobody);
             Bind(enterStationButton, OnEnterStation);
-            Bind(selectMissionButton, OnSelectMission);
             Bind(bdsCheckButton, OnOpenBdsCheck);
-            Bind(quitButton, OnQuit);
-            Bind(logoutButton, OnLogout);
         }
 
         static void Bind(Button? button, UnityEngine.Events.UnityAction action)
@@ -101,19 +88,12 @@ namespace PinkSoft.Core.Lobby
         void RefreshFlow()
         {
             var session = AgentSession.Instance;
-            var atStation = session != null && session.IsAtStation;
-
             if (identityPanel != null)
-                identityPanel.SetActive(!atStation);
-            if (stationPanel != null)
-                stationPanel.SetActive(atStation);
+                identityPanel.SetActive(true);
             if (bdsCheckRoot != null)
                 bdsCheckRoot.SetActive(true);
 
-            if (atStation)
-                UpdateStationPanel();
-            else
-                UpdateRendezvousPanel();
+            UpdateRendezvousPanel();
         }
 
         void UpdateRendezvousPanel()
@@ -212,7 +192,6 @@ namespace PinkSoft.Core.Lobby
 
                 var root = partySlotRoots[i];
 
-                // 기존 씬의 얇은 파티 바를 초상 카드 높이로 확장
                 var partyPanel = root.transform.parent != null ? root.transform.parent.parent as RectTransform : null;
                 if (partyPanel != null && partyPanel.name == "PartyPanel")
                 {
@@ -283,10 +262,7 @@ namespace PinkSoft.Core.Lobby
             if (_busy)
                 return;
 
-            var session = AgentSession.Instance;
-            if (session == null)
-                return;
-
+            var session = AgentSession.Require();
             if (session.IsPartyFull)
             {
                 SetIdentityStatus($"파티가 가득 찼습니다 ({AgentSession.MaxAgents}명).");
@@ -310,15 +286,16 @@ namespace PinkSoft.Core.Lobby
             SetIdentityButtonsInteractable(false);
             SetIdentityStatus("신원 확인 중…");
 
-            if (apiClient != null)
+            var api = PinkSoftApiClient.Instance ?? apiClient;
+            if (api != null)
             {
-                StartCoroutine(apiClient.Login(callsign, ok =>
+                StartCoroutine(api.Login(callsign, ok =>
                 {
-                    if (ok && apiClient.UserId != null)
+                    if (ok && api.UserId != null)
                     {
                         AddAgentToParty(new RuntimeUserData
                         {
-                            userId = apiClient.UserId,
+                            userId = api.UserId,
                             nickname = callsign,
                             currentLevel = 1
                         }, isNobody: false, "클리어런스 승인 — 파티에 추가됨");
@@ -361,24 +338,18 @@ namespace PinkSoft.Core.Lobby
             }
         }
 
-        /// <summary>계정 없는 친구용 Guest — 파티에만 추가. Station으로 자동 이동하지 않음.</summary>
         public void OnAddNobody()
         {
             if (_busy)
                 return;
 
-            var session = AgentSession.Instance;
-            if (session == null)
-                return;
-
-            var result = session.TryAddNobody();
+            var result = AgentSession.Require().TryAddNobody();
             HandleAddResult(result, "Nobody(Guest) — 시스템 기본값으로 파티에 추가됨");
         }
 
         void AddAgentToParty(RuntimeUserData user, bool isNobody, string okMessage)
         {
-            var session = AgentSession.Instance!;
-            var result = session.TryAddAgent(user, isNobody);
+            var result = AgentSession.Require().TryAddAgent(user, isNobody);
             HandleAddResult(result, okMessage);
         }
 
@@ -410,38 +381,40 @@ namespace PinkSoft.Core.Lobby
             }
         }
 
-        /// <summary>접선 완료 — 파티가 1명 이상일 때만 Station으로 전환. 가능하면 서버 partyId 발급.</summary>
+        /// <summary>서버 partyId 발급 후 Station 씬 로드.</summary>
         public void OnEnterStation()
         {
             if (_busy)
                 return;
 
-            var session = AgentSession.Instance;
-            if (session == null || !session.HasParty)
+            var session = AgentSession.Require();
+            if (!session.HasParty)
             {
                 SetIdentityStatus("먼저 에이전트를 1명 이상 등록하세요.");
                 ShowStatus("파티가 비어 있습니다");
                 return;
             }
 
-            if (apiClient != null && !string.IsNullOrEmpty(apiClient.Token))
+            session.SetBayId(bayId);
+            var api = PinkSoftApiClient.Instance;
+            if (api != null && api.HasToken)
             {
                 _busy = true;
                 SetIdentityButtonsInteractable(false);
                 SetIdentityStatus("서버 파티 등록 중…");
                 ShowStatus("partyId 발급 중…");
-                StartCoroutine(EnterStationWithParty(session));
+                StartCoroutine(EnterStationWithParty(session, api));
                 return;
             }
 
             FinishEnterStation(session, offline: true);
         }
 
-        System.Collections.IEnumerator EnterStationWithParty(AgentSession session)
+        System.Collections.IEnumerator EnterStationWithParty(AgentSession session, PinkSoftApiClient api)
         {
             var members = BuildPartyMemberRequests(session);
             PinkSoftApiClient.PartyResponse? party = null;
-            yield return apiClient.CreateParty(bayId, members, res => party = res);
+            yield return api.CreateParty(session.BayId, members, res => party = res);
 
             if (party != null && !string.IsNullOrEmpty(party.partyId))
             {
@@ -464,150 +437,11 @@ namespace PinkSoft.Core.Lobby
 
         void FinishEnterStation(AgentSession session, bool offline)
         {
-            session.EnterStation();
             _busy = false;
-            SetIdentityButtonsInteractable(true);
-            _stationHint = offline
-                ? "로컬 Station. 미션을 선택하세요.\n(서버 토큰 없으면 결과 제출은 건너뜀)"
-                : "클리어런스 승인됨. 미션을 선택하세요.\n(BDS Check는 우측 상단)";
-            RefreshFlow();
             ShowStatus(offline
-                ? $"Station 진입 (로컬) — 파티 {session.PartyCount}명"
-                : $"Station 진입 — party {ShortId(session.ServerPartyId)} · {session.PartyCount}명");
-
-            if (apiClient != null)
-                StartCoroutine(PrefetchCatalog());
-        }
-
-        System.Collections.IEnumerator PrefetchCatalog()
-        {
-            PinkSoftApiClient.CatalogResponse? catalog = null;
-            yield return apiClient.FetchCatalog(null, res => catalog = res);
-            if (catalog?.missions != null && catalog.missions.Length > 0)
-            {
-                _catalog = catalog.missions;
-                _stationHint = BuildCatalogHint(_catalog);
-                UpdateStationPanel();
-            }
-        }
-
-        static string BuildCatalogHint(PinkSoftApiClient.MissionMeta[] missions)
-        {
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine("미션 카탈로그");
-            var n = Mathf.Min(missions.Length, 5);
-            for (var i = 0; i < n; i++)
-                sb.AppendLine($" · {missions[i].title} ({missions[i].missionId})");
-            if (missions.Length > 5)
-                sb.AppendLine($" · …외 {missions.Length - 5}개");
-            sb.Append("\n[미션 선택] → 첫 미션으로 Run 시작");
-            return sb.ToString();
-        }
-
-        void UpdateStationPanel()
-        {
-            var session = AgentSession.Instance;
-            if (stationAgentText == null || session == null)
-                return;
-
-            stationAgentText.text = session.BuildPartySummary() + "\n\n" + _stationHint;
-        }
-
-        public void OnSelectMission()
-        {
-            if (_busy)
-                return;
-
-            var session = AgentSession.Instance;
-            if (session == null || !session.IsAtStation)
-            {
-                ShowStatus("먼저 Station에 진입하세요.");
-                return;
-            }
-
-            if (apiClient == null || string.IsNullOrEmpty(apiClient.Token))
-            {
-                ShowStatus(allowOfflineClearance
-                    ? "API 토큰 없음 — 온라인 Clearance 후 미션 API 사용"
-                    : "API 클라이언트가 없습니다.");
-                return;
-            }
-
-            _busy = true;
-            if (selectMissionButton != null)
-                selectMissionButton.interactable = false;
-            ShowStatus("미션 카탈로그 / Run 준비…");
-            StartCoroutine(SelectMissionRoutine(session));
-        }
-
-        System.Collections.IEnumerator SelectMissionRoutine(AgentSession session)
-        {
-            if (_catalog.Length == 0)
-            {
-                PinkSoftApiClient.CatalogResponse? catalog = null;
-                yield return apiClient.FetchCatalog(null, res => catalog = res);
-                if (catalog?.missions == null || catalog.missions.Length == 0)
-                {
-                    EndMissionBusy("카탈로그가 비어 있습니다.");
-                    yield break;
-                }
-
-                _catalog = catalog.missions;
-                _stationHint = BuildCatalogHint(_catalog);
-                UpdateStationPanel();
-            }
-
-            var mission = _catalog[0];
-            ShowStatus($"Run 시작 — {mission.title}");
-
-            PinkSoftApiClient.RunResponse? run = null;
-            yield return apiClient.StartRun(mission.missionId, session.ServerPartyId, bayId, res => run = res);
-            if (run == null || string.IsNullOrEmpty(run.runId))
-            {
-                EndMissionBusy("Run 시작 실패");
-                yield break;
-            }
-
-            session.SetActiveRun(run.runId, mission.missionId, mission.title);
-            UpdateStationPanel();
-            ShowStatus($"run {ShortId(run.runId)} 시작됨");
-
-            if (!submitTestResultOnSelect)
-            {
-                EndMissionBusy($"런 준비 완료 — {mission.title}");
-                yield break;
-            }
-
-            // 미션 씬 연동 전: API 파이프라인 검증용 테스트 결과 제출
-            ShowStatus("테스트 결과 제출 중…");
-            var result = new MissionResultData
-            {
-                finalScore = 100,
-                playTime = 10,
-                starsEarned = 1,
-                eventLog = new System.Collections.Generic.List<ScoreEventRecord>()
-            };
-
-            PinkSoftApiClient.CompleteResponse? complete = null;
-            yield return apiClient.CompleteMission(result, mission.missionId, run.runId, res => complete = res);
-            if (complete == null)
-            {
-                EndMissionBusy("결과 제출 실패");
-                yield break;
-            }
-
-            session.ClearActiveRun();
-            UpdateStationPanel();
-            EndMissionBusy(
-                $"완료 gold+{complete.goldReward} exp+{complete.expGained} rank #{complete.newRank}");
-        }
-
-        void EndMissionBusy(string status)
-        {
-            _busy = false;
-            if (selectMissionButton != null)
-                selectMissionButton.interactable = true;
-            ShowStatus(status);
+                ? $"Station 이동 (로컬) — 파티 {session.PartyCount}명"
+                : $"Station 이동 — party · {session.PartyCount}명");
+            session.EnterStationAndLoadScene();
         }
 
         static PinkSoftApiClient.PartyMemberRequest[] BuildPartyMemberRequests(AgentSession session)
@@ -629,39 +463,9 @@ namespace PinkSoft.Core.Lobby
             return list.ToArray();
         }
 
-        static string ShortId(string? id)
-        {
-            if (string.IsNullOrEmpty(id))
-                return "—";
-            return id.Length <= 8 ? id : id[..8] + "…";
-        }
-
         public void OnOpenBdsCheck()
         {
-            if (string.IsNullOrWhiteSpace(bdsCheckSceneName))
-            {
-                ShowStatus("BDS Check 씬 이름이 비어 있습니다.");
-                return;
-            }
-
-            SceneManager.LoadScene(bdsCheckSceneName);
-        }
-
-        public void OnLogout()
-        {
-            AgentSession.Instance?.Revoke();
-            RefreshFlow();
-            SetIdentityStatus("파티가 해제되었습니다. 다시 접선하세요.");
-            ShowStatus("접선 화면으로 복귀");
-        }
-
-        public void OnQuit()
-        {
-#if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-#else
-            Application.Quit();
-#endif
+            SceneManager.LoadScene(AgentSession.BdsCheckSceneName);
         }
 
         void SetIdentityStatus(string message)

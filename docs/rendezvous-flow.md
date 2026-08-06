@@ -2,21 +2,22 @@
 
 ## 한 줄 요약
 
-**접선(Rendezvous)에서 최대 4명까지 신원 확인/Nobody 등록 → 별도 버튼으로 Station 진입 → 미션 목록 조회·선택.**
+**접선(Rendezvous)에서 최대 4명까지 신원 확인/Nobody 등록 → Station 씬 진입 → 미션 목록 조회·선택.**
 
 신원 확인 성공이나 Nobody 추가만으로 Station으로 넘어가지 않는다.  
-**Station 진입은 접선 화면의 전용 버튼**으로만 한다.
+**Station 진입은 접선 화면의 전용 버튼**으로만 하며, `AgentSession`(DontDestroyOnLoad)으로 파티·토큰을 공유한 채 `Station` 씬을 로드한다.
 
 ## 용어
 
 | 용어 | 의미 |
 |------|------|
 | **Rendezvous** | 요원이 외부에서 다른 요원·본부와 **접선**하는 거점 씬 |
+| **Station** | 미션 목록·선택 **전용 씬** (`Assets/Scenes/Station.unity`) |
+| **AgentSession** | DDOL 싱글톤. 파티·partyId·runId. `AgentSession.Require()`로 접근 |
 | **Clearance** | 콜사인으로 **신원 확인** 후 **파티에 등록** (개인 프로필) |
 | **Nobody** | 계정 없는 친구용 **Guest 콜사인**. 파티에만 추가. **시스템 기본값** |
 | **Party** | 접선에 등록된 에이전트 목록 (**최대 4명**) |
-| **Station 진입** | 파티가 1명 이상일 때, 접선 화면의 **별도 버튼**으로만 전환 |
-| **Station** | 미션 목록 조회·선택 UI |
+| **Station 진입** | 파티가 1명 이상일 때, 접선 화면의 **별도 버튼** → `Station` 씬 로드 |
 | **BDS Check** | Clearance·Station 공통 우측 상단 특수 버튼 |
 | **Agent Presence** | BLE·카메라 등으로 요원이 **해당 타석/접선 지점에 와 있는지** 확인 (**예정**) |
 | **missionId** | 카탈로그 **콘텐츠** ID (어떤 미션인가). 영구 |
@@ -33,11 +34,11 @@ Boot
         ├─ 콜사인 → 신원 확인 → 파티에 추가 (자동으로 Station 이동 ❌)
         ├─ Nobody 추가 → 파티에 추가 (자동으로 Station 이동 ❌)
         ├─ 파티 목록 표시 (1~4명)
-        ├─ [Station 진입] ← 파티 ≥1 일 때만 활성
+        ├─ [Station 진입] ← 파티 ≥1 · partyId 발급 → LoadScene(Station)
         │         ↓
-        ├─ Station — 미션 목록 조회 → 선택
+        ├─ Station 씬 — 미션 목록 조회 → 선택 (AgentSession 공유)
         │
-        ├─ [BDS Check] → BdsCheck 씬 (Teensy HID · 1920×1080) → Rendezvous 복귀
+        ├─ [BDS Check] → BdsCheck 씬 → Station 또는 Rendezvous 복귀
         └─ Mission 수행 → Station 복귀
 ```
 
@@ -123,11 +124,13 @@ Station·미션 UI는 숨긴다. 이 화면에서만 파티를 구성한다.
 
 | 경로 | 역할 |
 |------|------|
-| `Assets/Scenes/Rendezvous.unity` | 접선 / Station |
+| `Assets/Scenes/Rendezvous.unity` | 접선 (Clearance) |
+| `Assets/Scenes/Station.unity` | Station (미션 선택) |
 | `Assets/Scenes/BdsCheck.unity` | BDS Check 전용 |
-| `Assets/Core/Runtime/AgentSession.cs` | 최대 4인 파티, Station 진입 플래그 |
-| `Assets/Core/Runtime/Lobby/StartMenuUI.cs` | 등록 ↔ Station 진입 / BDS Check 씬 전환 |
-| `Assets/Core/Runtime/PinkSoftApiClient.cs` | pinkapi `/mi/api` — login / catalog / party / run / complete |
+| `Assets/Core/Runtime/AgentSession.cs` | DDOL 파티·런 상태, `Require()` |
+| `Assets/Core/Runtime/PinkSoftApiClient.cs` | DDOL MI API 클라이언트 |
+| `Assets/Core/Runtime/Lobby/StartMenuUI.cs` | 접선 → Station 씬 전환 |
+| `Assets/Core/Runtime/Lobby/StationUI.cs` | Station 씬 UI |
 | `Assets/Core/Runtime/BdsCheck/BdsCheckSceneController.cs` | 5포인트 통과 검증 |
 
 ## Planned — Agent Presence (요원 현장 감지)
