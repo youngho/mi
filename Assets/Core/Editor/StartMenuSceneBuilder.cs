@@ -238,40 +238,27 @@ namespace PinkSoft.EditorTools
             radioText.alignment = TextAnchor.MiddleCenter;
             radioToast.gameObject.SetActive(false);
 
-            // Clearance 공통 — 우측 상단 BDS Check 특수 버튼
+            // Clearance 공통 — 우측 상단 정사각 타겟지 BDS Check (상·우 동일 마진)
+            const float bdsSize = 120f;
+            const float bdsMargin = 28f;
             var bdsRoot = CreateImage(canvasGo.transform, "BdsCheckHud", Color.clear);
             bdsRoot.raycastTarget = false;
-            Place(bdsRoot.rectTransform, 0.80f, 0.76f, 0.98f, 0.84f);
+            PlaceTopRightSquare(bdsRoot.rectTransform, bdsSize, bdsMargin);
 
-            var bdsFace = new Color(0.10f, 0.14f, 0.17f, 0.95f);
             var bdsBtnGo = new GameObject("BdsCheckButton", typeof(RectTransform), typeof(Image), typeof(Button));
             bdsBtnGo.transform.SetParent(bdsRoot.transform, false);
             Stretch(bdsBtnGo.GetComponent<RectTransform>());
             var bdsImg = bdsBtnGo.GetComponent<Image>();
-            bdsImg.color = bdsFace;
+            bdsImg.color = Color.white;
+            bdsImg.preserveAspect = true;
+            var targetSprite = AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/Core/Runtime/Lobby/UI/bds_check_target_btn.png");
+            if (targetSprite != null)
+                bdsImg.sprite = targetSprite;
+            else
+                bdsImg.color = new Color(0.06f, 0.07f, 0.08f, 0.92f);
             var bdsBtn = bdsBtnGo.GetComponent<Button>();
             bdsBtn.targetGraphic = bdsImg;
-
-            var iconSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Core/Runtime/Lobby/UI/bds_check_icon.png");
-            var iconGo = new GameObject("Icon", typeof(RectTransform), typeof(Image));
-            iconGo.transform.SetParent(bdsBtnGo.transform, false);
-            Place(iconGo.GetComponent<RectTransform>(), 0.06f, 0.18f, 0.34f, 0.82f);
-            var iconImg = iconGo.GetComponent<Image>();
-            iconImg.raycastTarget = false;
-            if (iconSprite != null)
-            {
-                iconImg.sprite = iconSprite;
-                iconImg.color = Color.white;
-                iconImg.preserveAspect = true;
-            }
-            else
-            {
-                iconImg.color = Accent;
-            }
-
-            var bdsLabel = CreateText(bdsBtnGo.transform, "Label", "BDS Check", 20, TextPrimary, FontStyle.Bold);
-            Place(bdsLabel.rectTransform, 0.36f, 0.15f, 0.96f, 0.85f);
-            bdsLabel.alignment = TextAnchor.MiddleLeft;
 
             // 화면 하단 중앙 — 저작권처럼 연한 회사 표기
             var creditColor = new Color(0.55f, 0.58f, 0.62f, 0.22f);
@@ -396,6 +383,16 @@ namespace PinkSoft.EditorTools
             rt.anchorMax = new Vector2(xMax, yMax);
             rt.offsetMin = minOffset;
             rt.offsetMax = maxOffset;
+        }
+
+        /// <summary>우상단 정사각 — 위쪽·오른쪽 마진을 동일한 픽셀로.</summary>
+        static void PlaceTopRightSquare(RectTransform rt, float sizePx, float marginPx)
+        {
+            rt.anchorMin = new Vector2(1f, 1f);
+            rt.anchorMax = new Vector2(1f, 1f);
+            rt.pivot = new Vector2(1f, 1f);
+            rt.sizeDelta = new Vector2(sizePx, sizePx);
+            rt.anchoredPosition = new Vector2(-marginPx, -marginPx);
         }
 
         [MenuItem("PinkSoft/Bake Selected UI Anchors")]

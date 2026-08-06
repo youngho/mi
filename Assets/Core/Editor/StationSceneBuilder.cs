@@ -190,17 +190,27 @@ namespace PinkSoft.EditorTools
 
             var bdsRoot = CreateImage(canvasGo.transform, "BdsCheckHud", Color.clear, stretch: false);
             bdsRoot.raycastTarget = false;
-            Place(bdsRoot.rectTransform, 0.78f, 0.90f, 0.98f, 0.98f);
+            const float bdsSize = 120f;
+            const float bdsMargin = 28f;
+            var bdsRt = bdsRoot.rectTransform;
+            bdsRt.anchorMin = new Vector2(1f, 1f);
+            bdsRt.anchorMax = new Vector2(1f, 1f);
+            bdsRt.pivot = new Vector2(1f, 1f);
+            bdsRt.sizeDelta = new Vector2(bdsSize, bdsSize);
+            bdsRt.anchoredPosition = new Vector2(-bdsMargin, -bdsMargin);
+
             var bdsBtnGo = new GameObject("BdsCheckButton", typeof(RectTransform), typeof(Image), typeof(Button));
             bdsBtnGo.transform.SetParent(bdsRoot.transform, false);
             Stretch(bdsBtnGo.GetComponent<RectTransform>());
             var bdsImg = bdsBtnGo.GetComponent<Image>();
-            bdsImg.color = new Color(0.10f, 0.14f, 0.17f, 0.95f);
+            bdsImg.color = Color.white;
+            bdsImg.preserveAspect = true;
+            var targetSprite = AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/Core/Runtime/Lobby/UI/bds_check_target_btn.png");
+            if (targetSprite != null)
+                bdsImg.sprite = targetSprite;
             var bdsBtn = bdsBtnGo.GetComponent<Button>();
             bdsBtn.targetGraphic = bdsImg;
-            var bdsLabel = CreateText(bdsBtnGo.transform, "Label", "BDS Check", 18, TextPrimary, FontStyle.Bold);
-            Place(bdsLabel.rectTransform, 0.08f, 0.15f, 0.96f, 0.85f);
-            bdsLabel.alignment = TextAnchor.MiddleLeft;
 
             var credit = CreateText(canvasGo.transform, "CompanyCredit", "PinkSoft", 16,
                 new Color(0.55f, 0.58f, 0.62f, 0.22f), FontStyle.Normal);
