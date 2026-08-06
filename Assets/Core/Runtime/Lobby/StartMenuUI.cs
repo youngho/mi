@@ -21,6 +21,8 @@ namespace PinkSoft.Core.Lobby
         [SerializeField] Button nobodyButton = null!;
         [SerializeField] Button enterStationButton = null!;
         [SerializeField] Text identityStatusText = null!;
+        [SerializeField] Text clearanceTitleText = null!;
+        [SerializeField] Text clearanceSubText = null!;
         [SerializeField] Text[] partySlotTexts = System.Array.Empty<Text>();
         [SerializeField] Image[] partySlotBackgrounds = System.Array.Empty<Image>();
         [SerializeField] GameObject[] partySlotRoots = System.Array.Empty<GameObject>();
@@ -139,6 +141,13 @@ namespace PinkSoft.Core.Lobby
 
             if (nobodyButton != null)
                 nobodyButton.interactable = session == null || !session.IsPartyFull;
+
+            // 파티가 생기면 Clearance 안내는 더 이상 읽지 않아도 됨
+            var showClearanceHint = session == null || session.PartyCount == 0;
+            if (clearanceTitleText != null)
+                clearanceTitleText.gameObject.SetActive(showClearanceHint);
+            if (clearanceSubText != null)
+                clearanceSubText.gameObject.SetActive(showClearanceHint);
         }
 
         void RefreshPartyListUi(AgentSession? session)
