@@ -8,13 +8,13 @@ using UnityEngine.UI;
 namespace PinkSoft.Core.Lobby
 {
     /// <summary>
-    /// Station 씬 UI. 에이전트/토큰은 <see cref="AgentSession"/> + <see cref="PinkSoftApiClient"/> (DDOL)에서 읽는다.
+    /// Station 씬 UI. 미션은 앨범형(가운데 추천 + 하단 목록)으로 고른다.
     /// </summary>
     public sealed class StationUI : MonoBehaviour
     {
         [Header("Bindings")]
         [SerializeField] Text stationAgentText = null!;
-        [SerializeField] Button selectMissionButton = null!;
+        [SerializeField] MissionAlbumView missionAlbum = null!;
         [SerializeField] Button logoutButton = null!;
         [SerializeField] Button quitButton = null!;
         [SerializeField] Button bdsCheckButton = null!;
@@ -27,7 +27,6 @@ namespace PinkSoft.Core.Lobby
 
         bool _busy;
         PinkSoftApiClient.MissionMeta[] _catalog = System.Array.Empty<PinkSoftApiClient.MissionMeta>();
-        string _hint = "미션을 선택하세요.\n(BDS Check는 우측 상단)";
 
         void Awake()
         {
@@ -48,12 +47,14 @@ namespace PinkSoft.Core.Lobby
             if (statusToast != null)
                 statusToast.SetActive(false);
 
-            Bind(selectMissionButton, OnSelectMission);
             Bind(logoutButton, OnLogout);
             Bind(quitButton, OnQuit);
             Bind(bdsCheckButton, OnOpenBdsCheck);
 
-            RefreshPanel();
+            if (missionAlbum != null)
+                missionAlbum.BindDeploy(OnDeployMission);
+
+            RefreshPartyPanel();
             StartCoroutine(PrefetchCatalog());
         }
 
@@ -65,44 +66,49 @@ namespace PinkSoft.Core.Lobby
             button.onClick.AddListener(action);
         }
 
-        void RefreshPanel()
+        void RefreshPartyPanel()
         {
             var session = AgentSession.Instance;
             if (stationAgentText == null || session == null)
                 return;
-            stationAgentText.text = session.BuildPartySummary() + "\n\n" + _hint;
+            stationAgentText.text = session.BuildPartySummary() + "\n\n위 목록에서 미션을 고르세요.";
         }
 
         IEnumerator PrefetchCatalog()
         {
             var api = PinkSoftApiClient.Instance;
             if (api == null || !api.HasToken)
+            {
+                ShowStatus("온라인 Clearance 후 카탈로그를 불러옵니다");
                 yield break;
+            }
 
+            ShowStatus("미션 카탈로그 로딩…");
             PinkSoftApiClient.CatalogResponse? catalog = null;
             yield return api.FetchCatalog(null, res => catalog = res);
             if (catalog?.missions == null || catalog.missions.Length == 0)
+            {
+                ShowStatus("카탈로그가 비어 있습니다");
                 yield break;
+            }
 
             _catalog = catalog.missions;
-            _hint = BuildCatalogHint(_catalog);
-            RefreshPanel();
+            var rec = 0;
+            for (var i = 0; i < _catalog.Length; i++)
+            {
+                if (_catalog[i].missionId == "training-range-v1")
+                {
+                    rec = i;
+                    break;
+                }
+            }
+
+            missionAlbum?.SetMissions(_catalog, recommendedIndex: rec);
+            RefreshPartyPanel();
+            ShowStatus($"미션 {_catalog.Length}개 · 추천: {_catalog[rec].title}");
         }
 
-        static string BuildCatalogHint(PinkSoftApiClient.MissionMeta[] missions)
-        {
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine("미션 카탈로그");
-            var n = Mathf.Min(missions.Length, 5);
-            for (var i = 0; i < n; i++)
-                sb.AppendLine($" · {missions[i].title} ({missions[i].missionId})");
-            if (missions.Length > 5)
-                sb.AppendLine($" · …외 {missions.Length - 5}개");
-            sb.Append("\n[미션 선택] → 첫 미션으로 Run 시작");
-            return sb.ToString();
-        }
-
-        public void OnSelectMission()
+        void OnDeployMission(PinkSoftApiClient.MissionMeta mission)
         {
             if (_busy)
                 return;
@@ -116,32 +122,12 @@ namespace PinkSoft.Core.Lobby
             }
 
             _busy = true;
-            if (selectMissionButton != null)
-                selectMissionButton.interactable = false;
-            ShowStatus("미션 카탈로그 / Run 준비…");
-            StartCoroutine(SelectMissionRoutine(session, api));
+            ShowStatus($"투입 준비 — {mission.title}");
+            StartCoroutine(DeployRoutine(session, api, mission));
         }
 
-        IEnumerator SelectMissionRoutine(AgentSession session, PinkSoftApiClient api)
+        IEnumerator DeployRoutine(AgentSession session, PinkSoftApiClient api, PinkSoftApiClient.MissionMeta mission)
         {
-            if (_catalog.Length == 0)
-            {
-                PinkSoftApiClient.CatalogResponse? catalog = null;
-                yield return api.FetchCatalog(null, res => catalog = res);
-                if (catalog?.missions == null || catalog.missions.Length == 0)
-                {
-                    EndBusy("카탈로그가 비어 있습니다.");
-                    yield break;
-                }
-
-                _catalog = catalog.missions;
-                _hint = BuildCatalogHint(_catalog);
-                RefreshPanel();
-            }
-
-            var mission = _catalog[0];
-            ShowStatus($"Run 시작 — {mission.title}");
-
             PinkSoftApiClient.RunResponse? run = null;
             yield return api.StartRun(mission.missionId, session.ServerPartyId, session.BayId, res => run = res);
             if (run == null || string.IsNullOrEmpty(run.runId))
@@ -151,7 +137,7 @@ namespace PinkSoft.Core.Lobby
             }
 
             session.SetActiveRun(run.runId, mission.missionId, mission.title);
-            RefreshPanel();
+            RefreshPartyPanel();
             ShowStatus($"run {ShortId(run.runId)} 시작됨");
 
             if (!submitTestResultOnSelect)
@@ -178,27 +164,19 @@ namespace PinkSoft.Core.Lobby
             }
 
             session.ClearActiveRun();
-            RefreshPanel();
+            RefreshPartyPanel();
             EndBusy($"완료 gold+{complete.goldReward} exp+{complete.expGained} rank #{complete.newRank}");
         }
 
         void EndBusy(string status)
         {
             _busy = false;
-            if (selectMissionButton != null)
-                selectMissionButton.interactable = true;
             ShowStatus(status);
         }
 
-        public void OnLogout()
-        {
-            AgentSession.Require().RevokeAndReturnToRendezvous();
-        }
+        public void OnLogout() => AgentSession.Require().RevokeAndReturnToRendezvous();
 
-        public void OnOpenBdsCheck()
-        {
-            SceneManager.LoadScene(AgentSession.BdsCheckSceneName);
-        }
+        public void OnOpenBdsCheck() => SceneManager.LoadScene(AgentSession.BdsCheckSceneName);
 
         public void OnQuit()
         {
