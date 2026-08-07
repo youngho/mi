@@ -230,7 +230,8 @@ namespace PinkSoft.EditorTools
             Place(nobodyBtn.GetComponent<RectTransform>(), 0.54f, 0.14f, 0.72f, 0.44f);
 
             var enterBtn = CreateEnterStationButton(identity.transform);
-            Place(enterBtn.GetComponent<RectTransform>(), 0.26f, 0.16f, 0.52f, 0.24f);
+            // 메인 CTA — 오른쪽 아래
+            Place(enterBtn.GetComponent<RectTransform>(), 0.58f, 0.035f, 0.96f, 0.155f);
 
             // 4) Clearance 안내 — 파티 뒤(아래)·가운데. 파티 생기면 숨김
             var idTitle = CreateText(identity.transform, "ClearanceTitle", "AGENT CLEARANCE", 22,
@@ -378,28 +379,50 @@ namespace PinkSoft.EditorTools
 
         static Button CreateEnterStationButton(Transform parent)
         {
-            var go = new GameObject("EnterStationButton", typeof(RectTransform), typeof(Image), typeof(Button));
+            var go = new GameObject("EnterStationButton", typeof(RectTransform), typeof(Image), typeof(Button), typeof(Shadow));
             go.transform.SetParent(parent, false);
             var image = go.GetComponent<Image>();
-            const string spritePath = "Assets/Core/Runtime/Lobby/UI/ui_btn_enter_station.png";
-            if (!ApplySprite(image, spritePath, Color.white))
+            const string normalPath = "Assets/Core/Runtime/Lobby/UI/ui_btn_enter_station.png";
+            const string disabledPath = "Assets/Core/Runtime/Lobby/UI/ui_btn_enter_station_disabled.png";
+            if (!ApplySprite(image, normalPath, Color.white))
                 image.color = Accent;
             image.preserveAspect = true;
 
+            var shadow = go.GetComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.55f);
+            shadow.effectDistance = new Vector2(0f, -6f);
+
             var button = go.GetComponent<Button>();
             button.targetGraphic = image;
-            var colors = button.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1f, 0.92f, 0.88f, 1f);
-            colors.pressedColor = new Color(0.82f, 0.72f, 0.68f, 1f);
-            colors.selectedColor = Color.white;
-            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 0.55f);
-            button.colors = colors;
+            button.transition = Selectable.Transition.None; // PrimaryCtaButton이 상태 연출
 
-            var label = CreateText(go.transform, "Label", "Station 진입", 18, new Color(1f, 1f, 1f, 0f), FontStyle.Bold);
+            // 접근성용 투명 라벨 (스프라이트에 텍스트 포함)
+            var label = CreateText(go.transform, "Label", "Station 진입", 22, new Color(1f, 1f, 1f, 0f), FontStyle.Bold);
             Place(label.rectTransform, 0.1f, 0.15f, 0.9f, 0.85f);
             label.alignment = TextAnchor.MiddleCenter;
             label.raycastTarget = false;
+
+            // Disabled 잠금 아이콘 오버레이 (스프라이트에도 있으나 상태 전환용)
+            var lockGo = new GameObject("LockIcon", typeof(RectTransform), typeof(Image));
+            lockGo.transform.SetParent(go.transform, false);
+            var lockImg = lockGo.GetComponent<Image>();
+            lockImg.raycastTarget = false;
+            lockImg.color = new Color(1f, 1f, 1f, 0f); // disabled 스프라이트에 자물쇠 포함
+            Place(lockImg.rectTransform, 0.08f, 0.25f, 0.18f, 0.75f);
+            lockGo.SetActive(false);
+
+            var cta = go.AddComponent<PrimaryCtaButton>();
+            var so = new SerializedObject(cta);
+            so.FindProperty("faceImage").objectReferenceValue = image;
+            so.FindProperty("normalSprite").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Sprite>(normalPath);
+            so.FindProperty("disabledSprite").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Sprite>(disabledPath);
+            so.FindProperty("lockIcon").objectReferenceValue = lockGo;
+            so.FindProperty("dropShadow").objectReferenceValue = shadow;
+            so.FindProperty("hoverScale").floatValue = 1.05f;
+            so.FindProperty("pressScale").floatValue = 0.97f;
+            so.FindProperty("pressOffset").vector2Value = new Vector2(0f, -4f);
+            so.ApplyModifiedPropertiesWithoutUndo();
+
             return button;
         }
 
