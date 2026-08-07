@@ -24,9 +24,9 @@ namespace PinkSoft.Core.Lobby
         [SerializeField] GameObject tilePrefab = null!;
 
         [Header("Look")]
-        [SerializeField] Color cardIdle = new(0.12f, 0.15f, 0.18f, 0.95f);
-        [SerializeField] Color cardSelected = new(0.18f, 0.22f, 0.28f, 1f);
-        [SerializeField] Color accent = new(0.91f, 0.36f, 0.28f, 1f);
+        [SerializeField] Color cardIdle = new(0.88f, 0.90f, 0.92f, 1f);
+        [SerializeField] Color cardSelected = new(0.55f, 0.92f, 1f, 1f);
+        [SerializeField] Color accent = new(0.35f, 0.78f, 0.86f, 1f);
         [SerializeField] Color textPrimary = new(0.95f, 0.94f, 0.92f, 1f);
         [SerializeField] Color textMuted = new(0.62f, 0.64f, 0.66f, 1f);
 
@@ -126,7 +126,10 @@ namespace PinkSoft.Core.Lobby
             }
 
             if (featuredCardImage != null)
+            {
+                // 패널 스프라이트면 시안 틴트로 선택 강조
                 featuredCardImage.color = cardSelected;
+            }
             if (deployButton != null)
                 deployButton.interactable = true;
         }
@@ -196,7 +199,7 @@ namespace PinkSoft.Core.Lobby
                 if (_outline == null)
                     _outline = gameObject.AddComponent<Outline>();
                 _outline.effectColor = accent;
-                _outline.effectDistance = new Vector2(2f, -2f);
+                _outline.effectDistance = new Vector2(2.5f, -2.5f);
                 SetSelected(false);
             }
 

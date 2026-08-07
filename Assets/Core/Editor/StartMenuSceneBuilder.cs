@@ -205,32 +205,32 @@ namespace PinkSoft.EditorTools
                 slotTexts[i] = label;
             }
 
-            // 3) 콜사인 입력 + 추가
-            var fieldBg = CreateImage(identity.transform, "CallsignField", FieldFace);
+            // 3) 콜사인 입력 + 추가 (메탈 콘솔 스타일)
+            var fieldBg = CreateImage(identity.transform, "CallsignField", Color.white);
             Place(fieldBg.rectTransform, 0.28f, 0.36f, 0.72f, 0.44f);
+            ApplySprite(fieldBg, "Assets/Core/Runtime/Lobby/UI/ui_input_field.png", Color.white);
             var input = fieldBg.gameObject.AddComponent<InputField>();
-            var placeholder = CreateText(fieldBg.transform, "Placeholder", "콜사인 입력", 26, TextMuted, FontStyle.Italic);
-            Stretch(placeholder.rectTransform);
+            var placeholder = CreateText(fieldBg.transform, "Placeholder", "콜사인 입력", 24,
+                new Color(0.65f, 0.68f, 0.72f, 0.75f), FontStyle.Italic);
+            Place(placeholder.rectTransform, 0.04f, 0.15f, 0.96f, 0.85f);
             placeholder.alignment = TextAnchor.MiddleCenter;
-            var inputText = CreateText(fieldBg.transform, "Text", "", 26, TextPrimary, FontStyle.Normal);
-            Stretch(inputText.rectTransform);
+            var inputText = CreateText(fieldBg.transform, "Text", "", 24, TextPrimary, FontStyle.Bold);
+            Place(inputText.rectTransform, 0.04f, 0.15f, 0.96f, 0.85f);
             inputText.alignment = TextAnchor.MiddleCenter;
             inputText.supportRichText = false;
             input.textComponent = inputText;
             input.placeholder = placeholder;
             input.characterLimit = 24;
 
-            var confirmBtn = CreateButton(identity.transform, "신원 확인", Accent);
-            Place(confirmBtn.GetComponent<RectTransform>(), 0.28f, 0.26f, 0.48f, 0.34f);
-            Object.DestroyImmediate(confirmBtn.GetComponent<LayoutElement>());
+            var confirmBtn = CreateConfirmIdentityButton(identity.transform);
+            Place(confirmBtn.GetComponent<RectTransform>(), 0.28f, 0.26f, 0.50f, 0.34f);
 
-            var nobodyBtn = CreateButton(identity.transform, "Nobody 추가", ButtonFace);
-            Place(nobodyBtn.GetComponent<RectTransform>(), 0.52f, 0.26f, 0.72f, 0.34f);
-            Object.DestroyImmediate(nobodyBtn.GetComponent<LayoutElement>());
+            // Nobody — 형체만 있는 세로 카드 슬롯 (탭으로 추가)
+            var nobodyBtn = CreateNobodyCardButton(identity.transform);
+            Place(nobodyBtn.GetComponent<RectTransform>(), 0.54f, 0.14f, 0.72f, 0.44f);
 
-            var enterBtn = CreateButton(identity.transform, "Station 진입", Accent);
-            Place(enterBtn.GetComponent<RectTransform>(), 0.38f, 0.16f, 0.62f, 0.24f);
-            Object.DestroyImmediate(enterBtn.GetComponent<LayoutElement>());
+            var enterBtn = CreateEnterStationButton(identity.transform);
+            Place(enterBtn.GetComponent<RectTransform>(), 0.26f, 0.16f, 0.52f, 0.24f);
 
             // 4) Clearance 안내 — 파티 뒤(아래)·가운데. 파티 생기면 숨김
             var idTitle = CreateText(identity.transform, "ClearanceTitle", "AGENT CLEARANCE", 22,
@@ -376,7 +376,91 @@ namespace PinkSoft.EditorTools
             return text;
         }
 
-        static Button CreateButton(Transform parent, string label, Color face)
+        static Button CreateEnterStationButton(Transform parent)
+        {
+            var go = new GameObject("EnterStationButton", typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(parent, false);
+            var image = go.GetComponent<Image>();
+            const string spritePath = "Assets/Core/Runtime/Lobby/UI/ui_btn_enter_station.png";
+            if (!ApplySprite(image, spritePath, Color.white))
+                image.color = Accent;
+            image.preserveAspect = true;
+
+            var button = go.GetComponent<Button>();
+            button.targetGraphic = image;
+            var colors = button.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1f, 0.92f, 0.88f, 1f);
+            colors.pressedColor = new Color(0.82f, 0.72f, 0.68f, 1f);
+            colors.selectedColor = Color.white;
+            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 0.55f);
+            button.colors = colors;
+
+            var label = CreateText(go.transform, "Label", "Station 진입", 18, new Color(1f, 1f, 1f, 0f), FontStyle.Bold);
+            Place(label.rectTransform, 0.1f, 0.15f, 0.9f, 0.85f);
+            label.alignment = TextAnchor.MiddleCenter;
+            label.raycastTarget = false;
+            return button;
+        }
+
+        static Button CreateConfirmIdentityButton(Transform parent)
+        {
+            var go = new GameObject("ConfirmIdentityButton", typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(parent, false);
+            var image = go.GetComponent<Image>();
+            const string spritePath = "Assets/Core/Runtime/Lobby/UI/ui_btn_confirm_identity.png";
+            if (!ApplySprite(image, spritePath, Color.white))
+                image.color = Accent;
+            image.preserveAspect = true;
+
+            var button = go.GetComponent<Button>();
+            button.targetGraphic = image;
+            var colors = button.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1f, 0.92f, 0.88f, 1f);
+            colors.pressedColor = new Color(0.82f, 0.72f, 0.68f, 1f);
+            colors.selectedColor = Color.white;
+            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 0.55f);
+            button.colors = colors;
+
+            // 스프라이트에 라벨/아이콘이 이미 포함됨
+            var label = CreateText(go.transform, "Label", "신원 확인", 18, new Color(1f, 1f, 1f, 0f), FontStyle.Bold);
+            Place(label.rectTransform, 0.1f, 0.15f, 0.9f, 0.85f);
+            label.alignment = TextAnchor.MiddleCenter;
+            label.raycastTarget = false;
+            return button;
+        }
+
+        static Button CreateNobodyCardButton(Transform parent)
+        {
+            var go = new GameObject("NobodyCardButton", typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(parent, false);
+            var image = go.GetComponent<Image>();
+            const string spritePath = "Assets/Core/Runtime/Lobby/UI/nobody_card_slot.png";
+            if (!ApplySprite(image, spritePath, Color.white))
+                image.color = new Color(0.12f, 0.22f, 0.30f, 0.95f);
+            image.preserveAspect = true;
+
+            var button = go.GetComponent<Button>();
+            button.targetGraphic = image;
+            var colors = button.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(0.85f, 0.95f, 1f, 1f);
+            colors.pressedColor = new Color(0.70f, 0.82f, 0.90f, 1f);
+            colors.selectedColor = Color.white;
+            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 0.55f);
+            button.colors = colors;
+
+            // 접근성/폴백 라벨 — 카드 스프라이트에 NoBody가 이미 있으므로 투명
+            var label = CreateText(go.transform, "Label", "NoBody", 18,
+                new Color(0.85f, 0.95f, 1f, 0f), FontStyle.Bold);
+            Place(label.rectTransform, 0.08f, 0.02f, 0.92f, 0.18f);
+            label.alignment = TextAnchor.MiddleCenter;
+            label.raycastTarget = false;
+            return button;
+        }
+
+        static Button CreateButton(Transform parent, string label, Color face, string? spritePath = null)
         {
             var go = new GameObject(label + "Button", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
@@ -384,13 +468,30 @@ namespace PinkSoft.EditorTools
             le.minHeight = 72;
             le.preferredHeight = 72;
             var image = go.GetComponent<Image>();
-            image.color = face;
+            if (string.IsNullOrEmpty(spritePath) || !ApplySprite(image, spritePath, Color.white))
+                image.color = face;
+
             var button = go.GetComponent<Button>();
             button.targetGraphic = image;
-            var text = CreateText(go.transform, "Label", label, 26, TextPrimary, FontStyle.Bold);
-            Stretch(text.rectTransform);
+            var text = CreateText(go.transform, "Label", label, 24, TextPrimary, FontStyle.Bold);
+            Place(text.rectTransform, 0.06f, 0.12f, 0.94f, 0.88f);
             text.alignment = TextAnchor.MiddleCenter;
+            text.resizeTextForBestFit = true;
+            text.resizeTextMinSize = 14;
+            text.resizeTextMaxSize = 24;
             return button;
+        }
+
+        static bool ApplySprite(Image image, string assetPath, Color tint)
+        {
+            var sp = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
+            if (sp == null)
+                return false;
+            image.sprite = sp;
+            image.type = Image.Type.Simple;
+            image.preserveAspect = false;
+            image.color = tint;
+            return true;
         }
 
         static void Stretch(RectTransform rt)

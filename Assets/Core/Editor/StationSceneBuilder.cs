@@ -55,8 +55,7 @@ namespace PinkSoft.EditorTools
             scaler.matchWidthOrHeight = 0.5f;
 
             var backdrop = CreateImage(canvasGo.transform, "Backdrop", Color.white, stretch: true);
-            var bgTex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Core/Runtime/Lobby/UI/station_table_sketches_bg.png");
-            var bgSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Core/Runtime/Lobby/UI/station_table_sketches_bg.png");
+            var bgSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Core/Runtime/Lobby/UI/rendezvous_scene_bg.png");
             if (bgSprite != null)
             {
                 backdrop.sprite = bgSprite;
@@ -64,20 +63,19 @@ namespace PinkSoft.EditorTools
                 backdrop.preserveAspect = false;
                 backdrop.color = Color.white;
             }
-            else if (bgTex != null)
+            else
             {
-                // Sprite import 전이면 텍스처로 임시 스프라이트 생성은 불가 — 단색 폴백
-                backdrop.color = new Color(0.08f, 0.09f, 0.10f, 1f);
-                Debug.LogWarning("station_table_sketches_bg Sprite import 필요 (Texture Type = Sprite).");
+                backdrop.color = Bg;
             }
 
-            // 가독성용 약한 딤 (배경 사진 위 UI)
-            var dim = CreateImage(canvasGo.transform, "BackdropDim", new Color(0.02f, 0.03f, 0.04f, 0.35f), stretch: true);
+            // 가독성용 약한 딤 (Rendezvous와 동일 톤)
+            var dim = CreateImage(canvasGo.transform, "BackdropDim", new Color(0.02f, 0.03f, 0.04f, 0.28f), stretch: true);
             dim.raycastTarget = false;
 
             // —— 미션 목록 (가운데 위, 좌우 동일 마진) ——
-            var stripFrame = CreateImage(canvasGo.transform, "AlbumStrip", new Color(0.07f, 0.09f, 0.11f, 0.9f), stretch: false);
+            var stripFrame = CreateImage(canvasGo.transform, "AlbumStrip", Color.white, stretch: false);
             Place(stripFrame.rectTransform, 0.05f, 0.52f, 0.95f, 0.90f);
+            ApplyPanelSprite(stripFrame);
 
             var stripLabel = CreateText(stripFrame.transform, "StripLabel", "미션 목록 — 탭하여 선택", 16, TextMuted, FontStyle.Normal);
             Place(stripLabel.rectTransform, 0.02f, 0.86f, 0.98f, 0.98f);
@@ -108,8 +106,8 @@ namespace PinkSoft.EditorTools
             contentRt.pivot = new Vector2(0f, 0.5f);
             contentRt.sizeDelta = new Vector2(0f, 0f);
             var hlg = content.GetComponent<HorizontalLayoutGroup>();
-            hlg.spacing = 14f;
-            hlg.padding = new RectOffset(8, 8, 8, 8);
+            hlg.spacing = 16f;
+            hlg.padding = new RectOffset(12, 12, 10, 10);
             hlg.childAlignment = TextAnchor.MiddleLeft;
             hlg.childControlWidth = false;
             hlg.childControlHeight = true;
@@ -134,8 +132,9 @@ namespace PinkSoft.EditorTools
             const float mid = 0.50f;
 
             // 파티 (왼쪽 아래)
-            var side = CreateImage(canvasGo.transform, "SidePanel", Panel, stretch: false);
+            var side = CreateImage(canvasGo.transform, "SidePanel", Color.white, stretch: false);
             Place(side.rectTransform, sideMargin, bottomYMin, mid - gap * 0.5f, bottomYMax);
+            ApplyPanelSprite(side);
             var sideTitle = CreateText(side.transform, "SideTitle", "파티", 22, TextPrimary, FontStyle.Bold);
             Place(sideTitle.rectTransform, 0.06f, 0.84f, 0.94f, 0.96f);
             sideTitle.alignment = TextAnchor.MiddleLeft;
@@ -146,7 +145,8 @@ namespace PinkSoft.EditorTools
             var sideButtons = CreateImage(side.transform, "SideButtons", Color.clear, stretch: false);
             sideButtons.raycastTarget = false;
             Place(sideButtons.rectTransform, 0.06f, 0.04f, 0.94f, 0.24f);
-            var logoutBtn = CreateButton(sideButtons.transform, "클리어런스 해제", ButtonFace);
+            var logoutBtn = CreateButton(sideButtons.transform, "클리어런스 해제", ButtonFace,
+                "Assets/Core/Runtime/Lobby/UI/ui_btn_secondary.png");
             Object.DestroyImmediate(logoutBtn.GetComponent<LayoutElement>());
             Stretch(logoutBtn.GetComponent<RectTransform>());
 
@@ -154,11 +154,12 @@ namespace PinkSoft.EditorTools
             var quitBtn = CreatePowerQuitButton(canvasGo.transform);
 
             // 미션 상세 (오른쪽 아래, 축소)
-            var featured = CreateImage(canvasGo.transform, "FeaturedCard", Card, stretch: false);
+            var featured = CreateImage(canvasGo.transform, "FeaturedCard", Color.white, stretch: false);
             Place(featured.rectTransform, mid + gap * 0.5f, bottomYMin, 1f - sideMargin, bottomYMax);
+            ApplyPanelSprite(featured);
             var featuredOutline = featured.gameObject.AddComponent<Outline>();
-            featuredOutline.effectColor = new Color(Accent.r, Accent.g, Accent.b, 0.55f);
-            featuredOutline.effectDistance = new Vector2(2f, -2f);
+            featuredOutline.effectColor = new Color(0.35f, 0.78f, 0.86f, 0.65f);
+            featuredOutline.effectDistance = new Vector2(2.5f, -2.5f);
 
             var badge = CreateText(featured.transform, "Badge", "추천", 15, Accent, FontStyle.Bold);
             Place(badge.rectTransform, 0.06f, 0.86f, 0.50f, 0.96f);
@@ -176,7 +177,8 @@ namespace PinkSoft.EditorTools
             Place(fMeta.rectTransform, 0.06f, 0.22f, 0.94f, 0.36f);
             fMeta.alignment = TextAnchor.UpperLeft;
 
-            var deployBtn = CreateButton(featured.transform, "투입", Accent);
+            var deployBtn = CreateButton(featured.transform, "투입", Accent,
+                "Assets/Core/Runtime/Lobby/UI/ui_btn_primary.png");
             Place(deployBtn.GetComponent<RectTransform>(), 0.06f, 0.05f, 0.48f, 0.18f);
             Object.DestroyImmediate(deployBtn.GetComponent<LayoutElement>());
 
@@ -231,6 +233,11 @@ namespace PinkSoft.EditorTools
             albumSo.FindProperty("stripContent").objectReferenceValue = contentRt;
             albumSo.FindProperty("stripScroll").objectReferenceValue = scroll;
             albumSo.FindProperty("tilePrefab").objectReferenceValue = tilePrefab;
+            albumSo.FindProperty("cardIdle").colorValue = new Color(0.88f, 0.90f, 0.92f, 1f);
+            albumSo.FindProperty("cardSelected").colorValue = new Color(0.55f, 0.92f, 1f, 1f);
+            albumSo.FindProperty("accent").colorValue = new Color(0.35f, 0.78f, 0.86f, 1f);
+            albumSo.FindProperty("textPrimary").colorValue = TextPrimary;
+            albumSo.FindProperty("textMuted").colorValue = TextMuted;
             albumSo.ApplyModifiedPropertiesWithoutUndo();
 
             var root = new GameObject("PMS_Station");
@@ -254,17 +261,31 @@ namespace PinkSoft.EditorTools
 
         static GameObject CreateTilePrefab(Transform parent)
         {
-            var go = new GameObject("MissionTilePrefab", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
+            var go = new GameObject("MissionTilePrefab", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement), typeof(Outline));
             go.transform.SetParent(parent, false);
             var rt = go.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(200f, 120f);
+            rt.sizeDelta = new Vector2(220f, 132f);
             var img = go.GetComponent<Image>();
-            img.color = Card;
+            img.color = new Color(0.14f, 0.17f, 0.20f, 0.92f);
+            var tileSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Core/Runtime/Lobby/UI/ui_btn_secondary.png");
+            if (tileSprite != null)
+            {
+                img.sprite = tileSprite;
+                img.type = Image.Type.Simple;
+                img.preserveAspect = false;
+                img.color = Color.white;
+            }
+
+            var outline = go.GetComponent<Outline>();
+            outline.effectColor = new Color(0.35f, 0.78f, 0.86f, 0.75f);
+            outline.effectDistance = new Vector2(2.5f, -2.5f);
+            outline.enabled = false;
+
             var le = go.GetComponent<LayoutElement>();
-            le.minWidth = 200f;
-            le.preferredWidth = 200f;
-            le.minHeight = 110f;
-            le.preferredHeight = 120f;
+            le.minWidth = 220f;
+            le.preferredWidth = 220f;
+            le.minHeight = 120f;
+            le.preferredHeight = 132f;
 
             var title = CreateText(go.transform, "Title", "Title", 20, TextPrimary, FontStyle.Bold);
             Place(title.rectTransform, 0.08f, 0.45f, 0.92f, 0.88f);
@@ -277,6 +298,21 @@ namespace PinkSoft.EditorTools
             sub.raycastTarget = false;
 
             return go;
+        }
+
+        static void ApplyPanelSprite(Image image)
+        {
+            var sp = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Core/Runtime/Lobby/UI/party_panel_bg.png");
+            if (sp == null)
+            {
+                image.color = Panel;
+                return;
+            }
+
+            image.sprite = sp;
+            image.type = Image.Type.Simple;
+            image.preserveAspect = false;
+            image.color = Color.white;
         }
 
         static void EnsureInBuildSettings()
@@ -322,21 +358,36 @@ namespace PinkSoft.EditorTools
             return text;
         }
 
-        static Button CreateButton(Transform parent, string label, Color face)
+        static Button CreateButton(Transform parent, string label, Color face, string? spritePath = null)
         {
             var go = new GameObject(label, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
             var img = go.GetComponent<Image>();
-            img.color = face;
+            var sp = string.IsNullOrEmpty(spritePath) ? null : AssetDatabase.LoadAssetAtPath<Sprite>(spritePath);
+            if (sp != null)
+            {
+                img.sprite = sp;
+                img.type = Image.Type.Simple;
+                img.preserveAspect = false;
+                img.color = Color.white;
+            }
+            else
+            {
+                img.color = face;
+            }
+
             var btn = go.GetComponent<Button>();
             btn.targetGraphic = img;
             var le = go.GetComponent<LayoutElement>();
             le.minHeight = 48;
             le.preferredHeight = 56;
             var t = CreateText(go.transform, "Label", label, 20, TextPrimary, FontStyle.Bold);
-            Stretch(t.rectTransform);
+            Place(t.rectTransform, 0.06f, 0.12f, 0.94f, 0.88f);
             t.alignment = TextAnchor.MiddleCenter;
             t.raycastTarget = false;
+            t.resizeTextForBestFit = true;
+            t.resizeTextMinSize = 12;
+            t.resizeTextMaxSize = 20;
             return btn;
         }
 
