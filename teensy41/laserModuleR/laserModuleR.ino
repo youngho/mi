@@ -128,10 +128,33 @@
  *     SENSOR_DO_ACTIVE_LOW=false → DO=HIGH 일 때 HIT
  *
  *   Sync: Pin6 (PIN_SYNC, INPUT_PULLUP). 미연결 시 `theta2 <deg>` + 수신 θ1 테스트
+ *
+ * ---------------------------------------------------------------------------
+ * ST7789 TFT 로그 디스플레이 — 1.54TFT-SPI-ST7789 (Ver 1.1, 240×240)
+ * ---------------------------------------------------------------------------
+ * 보드 뒷면 8핀 헤더 (왼쪽 → 오른쪽):
+ *     BL | CS | DC | RES | SDA | SCL | VCC | GND
+ *
+ *   Teensy 4.1 연결 (L/R 동일, 하드웨어 SPI0):
+ *     TFT GND  → Teensy GND
+ *     TFT VCC  → Teensy 3.3V  (보드 레귤 있음 — 5V도 가능하나 3.3V 권장)
+ *     TFT SCL  → Teensy Pin 13  (SCK)
+ *     TFT SDA  → Teensy Pin 11  (MOSI)  ※ MISO(12) 불필요
+ *     TFT RES  → Teensy Pin 7   (PIN_TFT_RST)
+ *     TFT DC   → Teensy Pin 8   (PIN_TFT_DC)
+ *     TFT CS   → Teensy Pin 10  (PIN_TFT_CS)
+ *     TFT BL   → Teensy Pin 14  (PIN_TFT_BL, HIGH=백라이트 ON)
+ *                또는 3.3V에 직결(항상 ON)
+ *
+ *   라이브러리: Teensyduino 내장 ST7735_t3 / ST7789_t3
+ *   동작: USB Serial 로그가 TFT에도 스크롤 표시 (보드 생존 확인용)
+ *   ※ 기본 글꼴은 ASCII만 — 한글은 Serial에만 온전히, TFT에서는 생략
+ *   ※ 화면이 안 나오면 TftLog.h 의 init(240,240) 를 init(240,240,SPI_MODE2) 로 시도
  * ---------------------------------------------------------------------------
  */
 
 #include <Arduino.h>
+#include "TftLog.h"
 #include <Mouse.h>
 
 // Mouse 객체는 Teensy USB Type에 Mouse가 포함될 때만 존재한다.
@@ -253,28 +276,28 @@ static void startClock(uint32_t hz)
   const uint32_t halfPeriodUs = 500000UL / g_clkHz;
   g_clkHigh = true;
   odWrite(PIN_MOTOR_CLK, true);
-  Serial.printf("[stage] CLK 타이머 시작 요청 (목표 %lu Hz, 반주기 %lu us)\n",
+  logf("[stage] CLK 타이머 시작 요청 (목표 %lu Hz, 반주기 %lu us)\n",
                 (unsigned long)g_clkHz, (unsigned long)halfPeriodUs);
   g_clkTimer.begin(clkIsr, halfPeriodUs);
-  Serial.println("[stage] CLK 출력 중 (오픈드레인 토글)");
+  logln("[stage] CLK 출력 중 (오픈드레인 토글)");
 }
 
 static void stopClock()
 {
-  Serial.println("[stage] CLK 타이머 정지");
+  logln("[stage] CLK 타이머 정지");
   g_clkTimer.end();
   odWrite(PIN_MOTOR_CLK, true);
-  Serial.println("[stage] CLK 핀 Hi-Z (idle)");
+  logln("[stage] CLK 핀 Hi-Z (idle)");
 }
 
 static void sendMotorSync(bool run)
 {
   if (run) {
     Serial1.printf("M,1,%lu\n", (unsigned long)g_clkHz);
-    Serial.printf("[link] TX M,1,%lu → Slave start\n", (unsigned long)g_clkHz);
+    logf("[link] TX M,1,%lu → Slave start\n", (unsigned long)g_clkHz);
   } else {
     Serial1.print("M,0\n");
-    Serial.println("[link] TX M,0 → Slave stop");
+    logln("[link] TX M,0 → Slave stop");
   }
   g_lastMotorSyncMs = millis();
 }
@@ -297,35 +320,35 @@ static void motorStart(uint32_t hz = 0)
   if (hz == 0) {
     hz = g_clkHz;
   }
-  Serial.println();
-  Serial.println("[stage] ===== 모터 START 시퀀스 시작 =====");
-  Serial.printf("[stage] 1/4 목표 CLK = %lu Hz\n", (unsigned long)hz);
-  Serial.println("[stage] 2/4 기준 클럭(CLK) 공급");
+  logln();
+  logln("[stage] ===== 모터 START 시퀀스 시작 =====");
+  logf("[stage] 1/4 목표 CLK = %lu Hz\n", (unsigned long)hz);
+  logln("[stage] 2/4 기준 클럭(CLK) 공급");
   startClock(hz);
   delay(5);
-  Serial.println("[stage] 3/4 S/S = LOW (기동)");
+  logln("[stage] 3/4 S/S = LOW (기동)");
   odWrite(PIN_MOTOR_SS, false);
   g_running = true;
   g_lastLocked = false;
-  Serial.println("[stage] 4/4 PLL 락 대기 중 (LD=LOW 되면 LOCKED)");
-  Serial.printf("[motor] START 완료 — clk=%lu Hz, running=1\n",
+  logln("[stage] 4/4 PLL 락 대기 중 (LD=LOW 되면 LOCKED)");
+  logf("[motor] START 완료 — clk=%lu Hz, running=1\n",
                 (unsigned long)g_clkHz);
   sendMotorSync(true);
 }
 
 static void motorStop()
 {
-  Serial.println();
-  Serial.println("[stage] ===== 모터 STOP 시퀀스 시작 =====");
-  Serial.println("[stage] 1/3 S/S = Hi-Z (정지, 내부 풀업)");
+  logln();
+  logln("[stage] ===== 모터 STOP 시퀀스 시작 =====");
+  logln("[stage] 1/3 S/S = Hi-Z (정지, 내부 풀업)");
   odWrite(PIN_MOTOR_SS, true);
   delay(2);
-  Serial.println("[stage] 2/3 기준 클럭 차단");
+  logln("[stage] 2/3 기준 클럭 차단");
   stopClock();
   g_running = false;
   g_lastLocked = false;
-  Serial.println("[stage] 3/3 상태 초기화 (running=0, locked=0)");
-  Serial.println("[motor] STOP 완료");
+  logln("[stage] 3/3 상태 초기화 (running=0, locked=0)");
+  logln("[motor] STOP 완료");
   sendMotorSync(false);
 }
 
@@ -344,7 +367,7 @@ static void setLaser(bool on)
 {
   digitalWrite(PIN_LASER, on ? HIGH : LOW);
   g_laserOn = on;
-  Serial.printf("[laser] %s (pin %d)\n", on ? "ON" : "OFF", PIN_LASER);
+  logf("[laser] %s (pin %d)\n", on ? "ON" : "OFF", PIN_LASER);
 }
 
 static bool computeTheta2(float *outDeg)
@@ -406,7 +429,7 @@ static bool triangulate(float theta1Deg, float theta2Deg, float *outX, float *ou
 static void emitHid(float xMm, float yMm)
 {
   if (!g_hidEnabled) {
-    Serial.printf("[hid] disabled — skip (%.1f, %.1f) mm\n", xMm, yMm);
+    logf("[hid] disabled — skip (%.1f, %.1f) mm\n", xMm, yMm);
     return;
   }
 
@@ -418,24 +441,24 @@ static void emitHid(float xMm, float yMm)
 
   // Unity BDS Check: TouchInputSource가 leftButton + position 으로 InputHit 생성
   Mouse.moveTo(px, py);
-  Serial.printf("[hid] moveTo (%d,%d) px  from (%.1f,%.1f) mm\n", px, py, xMm, yMm);
+  logf("[hid] moveTo (%d,%d) px  from (%.1f,%.1f) mm\n", px, py, xMm, yMm);
 
   if (EMIT_CLICK_ON_HIT) {
     const uint32_t now = millis();
     if (now - g_lastClickMs >= CLICK_COOLDOWN_MS) {
       Mouse.click();
       g_lastClickMs = now;
-      Serial.println("[hid] click");
+      logln("[hid] click");
     }
   }
 }
 
 static void processHitWithTheta2(float theta2Deg)
 {
-  Serial.printf("[angle] θ2=%.2f°\n", theta2Deg);
+  logf("[angle] θ2=%.2f°\n", theta2Deg);
 
   if (!isTheta1Fresh()) {
-    Serial.println("[tri] θ1 없거나 stale — 삼각측량 스킵 "
+    logln("[tri] θ1 없거나 stale — 삼각측량 스킵 "
                    "(Left에서 HIT/`theta` 확인)");
     return;
   }
@@ -444,11 +467,11 @@ static void processHitWithTheta2(float theta2Deg)
   float x = 0.0f;
   float y = 0.0f;
   if (!triangulate(theta1Deg, theta2Deg, &x, &y)) {
-    Serial.printf("[tri] 실패 θ1=%.2f θ2=%.2f\n", theta1Deg, theta2Deg);
+    logf("[tri] 실패 θ1=%.2f θ2=%.2f\n", theta1Deg, theta2Deg);
     return;
   }
 
-  Serial.printf("[tri] θ1=%.2f° θ2=%.2f° → X=%.1f Y=%.1f mm\n",
+  logf("[tri] θ1=%.2f° θ2=%.2f° → X=%.1f Y=%.1f mm\n",
                 theta1Deg, theta2Deg, x, y);
   emitHid(x, y);
 }
@@ -467,17 +490,17 @@ static void pollSensor()
 
   const int ao = analogRead(PIN_SENSOR_AO);
   if (hit) {
-    Serial.printf("[sensor] HIT  (DO=%d AO=%d)\n",
+    logf("[sensor] HIT  (DO=%d AO=%d)\n",
                   digitalRead(PIN_SENSOR_DO), ao);
     float th2 = 0.0f;
     if (computeTheta2(&th2)) {
       processHitWithTheta2(th2);
     } else {
-      Serial.println("[angle] HIT but Sync/period 없음 — θ2 미산출 "
+      logln("[angle] HIT but Sync/period 없음 — θ2 미산출 "
                      "(`theta2 <deg>` 로 테스트 가능)");
     }
   } else {
-    Serial.printf("[sensor] CLEAR (DO=%d AO=%d)\n",
+    logf("[sensor] CLEAR (DO=%d AO=%d)\n",
                   digitalRead(PIN_SENSOR_DO), ao);
   }
 }
@@ -508,18 +531,18 @@ static void handleLinkSerial()
         g_theta1Deg = centi / 100.0f;
         g_theta1RecvUs = micros();
         g_theta1Valid = true;
-        Serial.printf("[link] RX T1 θ1=%.2f° (%ld cd)\n", g_theta1Deg, centi);
+        logf("[link] RX T1 θ1=%.2f° (%ld cd)\n", g_theta1Deg, centi);
       } else {
-        Serial.printf("[link] bad packet: %s\n", line.c_str());
+        logf("[link] bad packet: %s\n", line.c_str());
       }
     } else if (line.startsWith("P,")) {
       const uint32_t nonce = (uint32_t)line.substring(2).toInt();
       if (g_linkPongPending && nonce == g_linkPongNonce) {
         g_linkPongGot = true;
       }
-      Serial.printf("[link] RX P,%lu (pong)\n", (unsigned long)nonce);
+      logf("[link] RX P,%lu (pong)\n", (unsigned long)nonce);
     } else if (line.length() > 0) {
-      Serial.printf("[link] ignore: %s\n", line.c_str());
+      logf("[link] ignore: %s\n", line.c_str());
     }
     line = "";
   }
@@ -536,7 +559,7 @@ static void runLinkPing()
   g_linkPongPending = true;
 
   Serial1.printf("P,%lu\n", (unsigned long)g_linkPongNonce);
-  Serial.printf("[cmd] ping 송신 P,%lu → Slave (timeout %lu ms)\n",
+  logf("[cmd] ping 송신 P,%lu → Slave (timeout %lu ms)\n",
                 (unsigned long)g_linkPongNonce,
                 (unsigned long)LINK_PING_TIMEOUT_MS);
 
@@ -544,7 +567,7 @@ static void runLinkPing()
   while ((millis() - t0) < LINK_PING_TIMEOUT_MS) {
     handleLinkSerial();
     if (g_linkPongGot) {
-      Serial.printf("[link] OK  L 응답 (%lu ms) — TX/RX/GND 정상\n",
+      logf("[link] OK  L 응답 (%lu ms) — TX/RX/GND 정상\n",
                     (unsigned long)(millis() - t0));
       g_linkPongPending = false;
       return;
@@ -552,27 +575,27 @@ static void runLinkPing()
   }
 
   g_linkPongPending = false;
-  Serial.println("[link] FAIL  응답 없음");
-  Serial.println("       확인: R Pin1→L Pin0, R Pin0←L Pin1, GND공통,");
-  Serial.println("             L 전원 ON, L에 최신 laserModuleL 업로드");
+  logln("[link] FAIL  응답 없음");
+  logln("       확인: R Pin1→L Pin0, R Pin0←L Pin1, GND공통,");
+  logln("             L 전원 ON, L에 최신 laserModuleL 업로드");
 }
 
 static void printHelp()
 {
-  Serial.println();
-  Serial.println("Commands (Node B / Right / Master):");
-  Serial.println("  start [hz]      - motor start (+ UART M,1 → Slave L)");
-  Serial.println("  stop            - motor stop (+ UART M,0 → Slave L)");
-  Serial.println("  clk <hz>        - set clock (100~10000)");
-  Serial.println("  status          - running / lock / θ1 / sync / laser");
-  Serial.println("  sensor          - print sensor once");
-  Serial.println("  laser on|off    - 650nm 라인 레이저 (Pin9 → NPN)");
-  Serial.println("  theta2 <deg>    - 수동 θ2 + 최신 θ1 로 삼각측량 테스트");
-  Serial.println("  inject <t1> <t2>- θ1·θ2 수동 삼각측량 (UART 없이)");
-  Serial.println("  hid on|off      - USB HID 출력 토글");
-  Serial.println("  ping            - UART 왕복 확인 (R만으로 L 통신 테스트)");
-  Serial.println("  help            - this help");
-  Serial.println();
+  logln();
+  logln("Commands (Node B / Right / Master):");
+  logln("  start [hz]      - motor start (+ UART M,1 → Slave L)");
+  logln("  stop            - motor stop (+ UART M,0 → Slave L)");
+  logln("  clk <hz>        - set clock (100~10000)");
+  logln("  status          - running / lock / θ1 / sync / laser");
+  logln("  sensor          - print sensor once");
+  logln("  laser on|off    - 650nm 라인 레이저 (Pin9 → NPN)");
+  logln("  theta2 <deg>    - 수동 θ2 + 최신 θ1 로 삼각측량 테스트");
+  logln("  inject <t1> <t2>- θ1·θ2 수동 삼각측량 (UART 없이)");
+  logln("  hid on|off      - USB HID 출력 토글");
+  logln("  ping            - UART 왕복 확인 (R만으로 L 통신 테스트)");
+  logln("  help            - this help");
+  logln();
 }
 
 static void handleSerial()
@@ -597,13 +620,13 @@ static void handleSerial()
     } else if (lower == "help" || lower == "?") {
       printHelp();
     } else if (lower == "stop") {
-      Serial.println("[cmd] stop 수신");
+      logln("[cmd] stop 수신");
       motorStop();
     } else if (lower == "ping") {
       runLinkPing();
     } else if (lower == "status") {
-      Serial.println("[cmd] status 수신");
-      Serial.printf("[status] running=%d locked=%d clk=%lu Hz hit=%d "
+      logln("[cmd] status 수신");
+      logf("[status] running=%d locked=%d clk=%lu Hz hit=%d "
                     "sync=%d period=%lu us θ1=%.2f fresh=%d hid=%d laser=%d\n",
                     g_running ? 1 : 0,
                     isLocked() ? 1 : 0,
@@ -616,7 +639,7 @@ static void handleSerial()
                     g_hidEnabled ? 1 : 0,
                     g_laserOn ? 1 : 0);
     } else if (lower == "sensor") {
-      Serial.printf("[sensor] hit=%d DO=%d AO=%d (active_low=%d)\n",
+      logf("[sensor] hit=%d DO=%d AO=%d (active_low=%d)\n",
                     isSensorHit() ? 1 : 0,
                     digitalRead(PIN_SENSOR_DO),
                     analogRead(PIN_SENSOR_AO),
@@ -624,7 +647,7 @@ static void handleSerial()
     } else if (lower.startsWith("laser")) {
       const int sp = lower.indexOf(' ');
       if (sp < 0) {
-        Serial.println("[err] usage: laser on|off");
+        logln("[err] usage: laser on|off");
       } else {
         const String arg = lower.substring(sp + 1);
         if (arg == "on") {
@@ -632,32 +655,32 @@ static void handleSerial()
         } else if (arg == "off") {
           setLaser(false);
         } else {
-          Serial.println("[err] usage: laser on|off");
+          logln("[err] usage: laser on|off");
         }
       }
     } else if (lower.startsWith("hid")) {
       const int sp = lower.indexOf(' ');
       if (sp < 0) {
-        Serial.println("[err] usage: hid on|off");
+        logln("[err] usage: hid on|off");
       } else {
         const String arg = lower.substring(sp + 1);
         if (arg == "on") {
           g_hidEnabled = true;
-          Serial.println("[hid] enabled");
+          logln("[hid] enabled");
         } else if (arg == "off") {
           g_hidEnabled = false;
-          Serial.println("[hid] disabled");
+          logln("[hid] disabled");
         } else {
-          Serial.println("[err] usage: hid on|off");
+          logln("[err] usage: hid on|off");
         }
       }
     } else if (lower.startsWith("theta2")) {
       const int sp = lower.indexOf(' ');
       if (sp < 0) {
-        Serial.println("[err] usage: theta2 <deg>");
+        logln("[err] usage: theta2 <deg>");
       } else {
         const float deg = lower.substring(sp + 1).toFloat();
-        Serial.printf("[cmd] 수동 θ2=%.2f°\n", deg);
+        logf("[cmd] 수동 θ2=%.2f°\n", deg);
         processHitWithTheta2(deg);
       }
     } else if (lower.startsWith("inject")) {
@@ -668,20 +691,20 @@ static void handleSerial()
         g_theta1Deg = t1;
         g_theta1RecvUs = micros();
         g_theta1Valid = true;
-        Serial.printf("[cmd] inject θ1=%.2f θ2=%.2f\n", t1, t2);
+        logf("[cmd] inject θ1=%.2f θ2=%.2f\n", t1, t2);
         processHitWithTheta2(t2);
       } else {
-        Serial.println("[err] usage: inject <theta1_deg> <theta2_deg>");
+        logln("[err] usage: inject <theta1_deg> <theta2_deg>");
       }
     } else if (lower.startsWith("start")) {
-      Serial.println("[cmd] start 수신");
+      logln("[cmd] start 수신");
       uint32_t hz = g_clkHz;
       const int sp = lower.indexOf(' ');
       if (sp > 0) {
         hz = (uint32_t)lower.substring(sp + 1).toInt();
       }
       if (hz < CLK_HZ_MIN || hz > CLK_HZ_MAX) {
-        Serial.printf("[err] clk out of range (%lu~%lu)\n",
+        logf("[err] clk out of range (%lu~%lu)\n",
                       (unsigned long)CLK_HZ_MIN, (unsigned long)CLK_HZ_MAX);
       } else {
         motorStart(hz);
@@ -689,18 +712,18 @@ static void handleSerial()
     } else if (lower.startsWith("clk")) {
       const int sp = lower.indexOf(' ');
       if (sp < 0) {
-        Serial.println("[err] usage: clk <hz>");
+        logln("[err] usage: clk <hz>");
       } else {
         const uint32_t hz = (uint32_t)lower.substring(sp + 1).toInt();
         if (!applyClockHz(hz)) {
-          Serial.printf("[err] clk out of range (%lu~%lu)\n",
+          logf("[err] clk out of range (%lu~%lu)\n",
                         (unsigned long)CLK_HZ_MIN, (unsigned long)CLK_HZ_MAX);
         } else {
-          Serial.printf("[ok] clk -> %lu Hz\n", (unsigned long)g_clkHz);
+          logf("[ok] clk -> %lu Hz\n", (unsigned long)g_clkHz);
         }
       }
     } else {
-      Serial.printf("[err] unknown: %s\n", line.c_str());
+      logf("[err] unknown: %s\n", line.c_str());
       printHelp();
     }
 
@@ -715,49 +738,53 @@ void setup()
   }
 
   Serial1.begin(LINK_BAUD);
+
+  tftLogBegin("Node B / Right");
   Mouse.begin();
 
-  Serial.println();
-  Serial.println("[stage] ===== setup 시작 (Node B / Right / Master) =====");
-  Serial.println("[stage] 1/7 USB Serial + Serial1 link + Mouse HID");
-  Serial.printf("[stage]    LINK_BAUD=%lu  RX1=Pin0 ← Slave TX1\n",
+  logln();
+  logln("[stage] ===== setup 시작 (Node B / Right / Master) =====");
+  logln("[stage] 1/8 USB Serial + Serial1 link + Mouse HID");
+  logf("[stage]    LINK_BAUD=%lu  RX1=Pin0 <- Slave TX1\n",
                 (unsigned long)LINK_BAUD);
-  Serial.printf("[stage]    Screen W=%.0f mm → %dx%d px\n",
+  logf("[stage]    Screen W=%.0f mm -> %dx%d px\n",
                 SCREEN_WIDTH_MM, SCREEN_PX_W, SCREEN_PX_H);
+  logln("[stage] 2/8 ST7789 TFT log (CS10 DC8 RST7 BL14 SPI 11/13)");
 
-  Serial.println("[stage] 2/7 LD 핀 INPUT_PULLUP 설정");
+  logln("[stage] 3/8 LD 핀 INPUT_PULLUP 설정");
   pinMode(PIN_MOTOR_LD, INPUT_PULLUP);
 
-  Serial.println("[stage] 3/7 S/S·CLK 초기화 (정지 / Hi-Z)");
+  logln("[stage] 4/8 S/S·CLK 초기화 (정지 / Hi-Z)");
   odWrite(PIN_MOTOR_SS, true);
   odWrite(PIN_MOTOR_CLK, true);
 
-  Serial.println("[stage] 4/7 센서 DO/AO 입력 설정");
+  logln("[stage] 5/8 센서 DO/AO 입력 설정");
   pinMode(PIN_SENSOR_DO, INPUT);
   g_lastHit = isSensorHit();
   g_sensorReady = true;
 
-  Serial.println("[stage] 5/7 Sync 인터럽트 설정");
+  logln("[stage] 6/8 Sync 인터럽트 설정");
   pinMode(PIN_SYNC, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_SYNC), syncIsr,
                   SYNC_ACTIVE_FALLING ? FALLING : RISING);
 
-  Serial.println("[stage] 6/7 레이저 Pin9 (NPN) 초기화");
+  logln("[stage] 7/8 레이저 Pin9 (NPN) 초기화");
   pinMode(PIN_LASER, OUTPUT);
   setLaser(LASER_DEFAULT_ON);
 
-  Serial.println("[stage] 7/7 ready");
-  Serial.println("laserModuleR / Node B (Master) ready");
-  Serial.println("USB Type must be Keyboard+Mouse+Joystick for HID");
-  Serial.println("Power: LM2596 5V→VIN, GND공통 / Laser: 3.3V→RED, Pin9→NPN→BLACK");
-  Serial.println("Sensor LM393 silk AO|DO|GND|VCC → A0|Pin5|GND|3.3V  Sync=6 Laser=9");
-  Serial.println("UART ↔ Slave: RX1(0)/TX1(1)/GND — RX T1,... / TX M,1|M,0 / ping");
+  logln("[stage] 8/8 ready");
+  logln("laserModuleR / Node B (Master) ready");
+  logln("USB Type must be Keyboard+Mouse+Joystick for HID");
+  logln("Power: LM2596 5V->VIN, GND common / Laser: 3.3V->RED, Pin9->NPN");
+  logln("Sensor AO|DO|GND|VCC -> A0|Pin5|GND|3.3V  Sync=6 Laser=9");
+  logln("UART <-> Slave: RX1(0)/TX1(1)/GND");
+  logln("TFT: GND VCC SCL13 SDA11 RES7 DC8 CS10 BL14");
   printHelp();
-  Serial.println("Wire V=24V(external), G=GND common, then: laser on / start");
-  Serial.println("R start → L도 UART로 자동 start (2초마다 M,1 재전송)");
-  Serial.println("통신 확인(R만): `ping`  →  [link] OK 면 L 연결 정상");
-  Serial.println("또는: Left `theta 48.5` / Right `inject 48.5 52.1`");
-  Serial.println("[stage] ===== setup 완료 =====");
+  logln("Wire V=24V(external), G=GND common, then: laser on / start");
+  logln("R start -> L also starts via UART (M,1 every 2s)");
+  logln("Link check (R only): ping -> [link] OK");
+  logln("Or: Left `theta 48.5` / Right `inject 48.5 52.1`");
+  logln("[stage] ===== setup 완료 =====");
 }
 
 void loop()
@@ -771,11 +798,11 @@ void loop()
   if (g_running && locked != g_lastLocked) {
     g_lastLocked = locked;
     if (locked) {
-      Serial.println("[stage] LD=LOW → PLL LOCKED");
-      Serial.println("[motor] LOCKED");
+      logln("[stage] LD=LOW → PLL LOCKED");
+      logln("[motor] LOCKED");
     } else {
-      Serial.println("[stage] LD=HIGH → unlocked");
-      Serial.println("[motor] unlocked");
+      logln("[stage] LD=HIGH → unlocked");
+      logln("[motor] unlocked");
     }
   }
 
