@@ -110,7 +110,8 @@
  *     └──┴──┴───┴───┘
  *
  *   Teensy 연결 (필수):
- *     모듈 AO  → Teensy A0   (PIN_SENSOR_AO, 아날로그 세기·디버그)
+ *     모듈 AO  → Teensy A1   (PIN_SENSOR_AO=15, 아날로그 세기·디버그)
+ *                   ※ A0(14)는 TFT BL과 충돌하므로 사용하지 않음
  *     모듈 DO  → Teensy Pin5 (PIN_SENSOR_DO, HIT 디지털)
  *     모듈 GND → Teensy GND  (공통)
  *     모듈 VCC → Teensy 3.3V (※ 5V 금지 — DO가 5V면 Teensy 4.1 손상 위험)
@@ -165,7 +166,7 @@ static const int PIN_MOTOR_CLK = 2;   // C
 static const int PIN_MOTOR_LD  = 3;   // L
 static const int PIN_MOTOR_SS  = 4;   // S
 static const int PIN_SENSOR_DO = 5;   // 포토다이오드 모듈 DO
-static const int PIN_SENSOR_AO = A0;  // 포토다이오드 모듈 AO (선택)
+static const int PIN_SENSOR_AO = A1;  // 포토다이오드 모듈 AO (A0=14는 TFT BL)
 static const int PIN_SYNC      = 6;   // 0° Sync 입력
 static const int PIN_LASER     = 9;   // NPN 베이스 구동 (HIGH=레이저 ON)
 
@@ -604,7 +605,7 @@ void setup()
   logf("CLK=%lu scan=%.0f\n",
                 (unsigned long)CLK_HZ_DEFAULT, SCAN_ANGLE_DEG);
   logln("VIN5V GND common");
-  logln("AO|DO->A0|5");
+  logln("AO|DO->A1|5");
   logln("Sync6 Laser9");
   logln("UART 1<->0 GND");
   logln("then: laser on");
