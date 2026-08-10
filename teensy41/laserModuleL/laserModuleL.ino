@@ -150,7 +150,9 @@
  *
  *   라이브러리: Teensyduino 내장 ST7735_t3 / ST7789_t3
  *   동작: USB Serial 로그가 TFT에도 스크롤 표시 (보드 생존 확인용)
- *   ※ 기본 글꼴은 ASCII만 — 한글은 Serial에만 온전히, TFT에서는 생략
+ *   ※ logln/logf 작성 규칙 (TftLog.h 참고):
+ *        TFT_LOG_COLS=20, TFT_LOG_ROWS=15 (size2) — 한 줄·한 화면 안에 맞출 것
+ *        한글은 TFT에 안 보임 → ASCII 위주
  *   ※ 화면이 안 나오면 TftLog.h 의 init(240,240) 를 init(240,240,SPI_MODE2) 로 시도
  * ---------------------------------------------------------------------------
  */
@@ -244,18 +246,18 @@ static void startClock(uint32_t hz)
   const uint32_t halfPeriodUs = 500000UL / g_clkHz;
   g_clkHigh = true;
   odWrite(PIN_MOTOR_CLK, true);
-  logf("[stage] CLK 타이머 시작 요청 (목표 %lu Hz, 반주기 %lu us)\n",
-                (unsigned long)g_clkHz, (unsigned long)halfPeriodUs);
+  logf("[clk] start %lu Hz\n", (unsigned long)g_clkHz);
+  logf("[clk] half=%lu us\n", (unsigned long)halfPeriodUs);
   g_clkTimer.begin(clkIsr, halfPeriodUs);
-  logln("[stage] CLK 출력 중 (오픈드레인 토글)");
+  logln("[clk] OD toggle on");
 }
 
 static void stopClock()
 {
-  logln("[stage] CLK 타이머 정지");
+  logln("[clk] timer stop");
   g_clkTimer.end();
   odWrite(PIN_MOTOR_CLK, true);  // Hi-Z
-  logln("[stage] CLK 핀 Hi-Z (idle)");
+  logln("[clk] pin Hi-Z");
 }
 
 static void motorStart(uint32_t hz = 0)
@@ -267,25 +269,23 @@ static void motorStart(uint32_t hz = 0)
     // 이미 기동 중이면 CLK만 필요 시 갱신 (R 주기 동기 M,1 중복 무시)
     if (hz != g_clkHz) {
       applyClockHz(hz);
-      logf("[motor] already running — clk -> %lu Hz\n",
-                    (unsigned long)g_clkHz);
+      logf("[motor] run clk=%lu\n", (unsigned long)g_clkHz);
     }
     return;
   }
   logln();
-  logln("[stage] ===== 모터 START 시퀀스 시작 =====");
-  logf("[stage] 1/4 목표 CLK = %lu Hz\n", (unsigned long)hz);
+  logln("[motor] START");
+  logf("[motor] 1/4 clk=%lu\n", (unsigned long)hz);
 
-  logln("[stage] 2/4 기준 클럭(CLK) 공급");
+  logln("[motor] 2/4 CLK on");
   startClock(hz);
   delay(5);
-  logln("[stage] 3/4 S/S = LOW (기동)");
+  logln("[motor] 3/4 S/S LOW");
   odWrite(PIN_MOTOR_SS, false);  // start
   g_running = true;
   g_lastLocked = false;
-  logln("[stage] 4/4 PLL 락 대기 중 (LD=LOW 되면 LOCKED)");
-  logf("[motor] START 완료 — clk=%lu Hz, running=1\n",
-                (unsigned long)g_clkHz);
+  logln("[motor] 4/4 wait LD");
+  logf("[motor] OK clk=%lu\n", (unsigned long)g_clkHz);
 }
 
 static void motorStop()
@@ -294,16 +294,16 @@ static void motorStop()
     return;
   }
   logln();
-  logln("[stage] ===== 모터 STOP 시퀀스 시작 =====");
-  logln("[stage] 1/3 S/S = Hi-Z (정지, 내부 풀업)");
+  logln("[motor] STOP");
+  logln("[motor] 1/3 S/S Hi-Z");
   odWrite(PIN_MOTOR_SS, true);  // stop (Hi-Z → 내부 풀업)
   delay(2);
-  logln("[stage] 2/3 기준 클럭 차단");
+  logln("[motor] 2/3 CLK off");
   stopClock();
   g_running = false;
   g_lastLocked = false;
-  logln("[stage] 3/3 상태 초기화 (running=0, locked=0)");
-  logln("[motor] STOP 완료");
+  logln("[motor] 3/3 cleared");
+  logln("[motor] STOP done");
 }
 
 static bool isLocked()
@@ -321,7 +321,7 @@ static void setLaser(bool on)
 {
   digitalWrite(PIN_LASER, on ? HIGH : LOW);
   g_laserOn = on;
-  logf("[laser] %s (pin %d)\n", on ? "ON" : "OFF", PIN_LASER);
+  logf("[laser] %s pin%d\n", on ? "ON" : "OFF", PIN_LASER);
 }
 
 // Sync 이후 HIT 시각으로 θ1 [deg] 산출. 실패 시 false.
@@ -350,8 +350,7 @@ static void sendTheta1(float deg)
   const int32_t centi = (int32_t)lroundf(deg * 100.0f);
   const uint32_t t = micros();
   Serial1.printf("T1,%ld,%lu\n", (long)centi, (unsigned long)t);
-  logf("[link] TX T1 θ1=%.2f° (%ld cd) t=%lu\n",
-                deg, (long)centi, (unsigned long)t);
+  logf("[link] TX T1 %.2f\n", deg);
 }
 
 static void pollSensor()
@@ -368,18 +367,18 @@ static void pollSensor()
 
   const int ao = analogRead(PIN_SENSOR_AO);
   if (hit) {
-    logf("[sensor] HIT  (DO=%d AO=%d)\n",
-                  digitalRead(PIN_SENSOR_DO), ao);
+    logf("[hit] DO=%d\n", digitalRead(PIN_SENSOR_DO));
+    logf("[hit] AO=%d\n", ao);
     float th = 0.0f;
     if (computeTheta1(&th)) {
       sendTheta1(th);
     } else {
-      logln("[link] HIT but Sync/period 없음 — θ1 미송신 "
-                     "(sync 배선 또는 `theta <deg>` 사용)");
+      logln("[hit] no sync");
+      logln(" use: theta <deg>");
     }
   } else {
-    logf("[sensor] CLEAR (DO=%d AO=%d)\n",
-                  digitalRead(PIN_SENSOR_DO), ao);
+    logf("[clr] DO=%d\n", digitalRead(PIN_SENSOR_DO));
+    logf("[clr] AO=%d\n", ao);
   }
 }
 
@@ -406,7 +405,7 @@ static void handleLinkSerial()
       const int c2 = line.indexOf(',', c1 + 1);
       const int run = line.substring(c1 + 1, c2 > c1 ? c2 : (int)line.length()).toInt();
       if (run == 0) {
-        logln("[link] RX M,0 → motor stop (from Master)");
+        logln("[link] RX M,0 stop");
         motorStop();
       } else if (run == 1) {
         uint32_t hz = g_clkHz;
@@ -416,23 +415,22 @@ static void handleLinkSerial()
             hz = parsed;
           }
         }
-        logf("[link] RX M,1 → motor start clk=%lu (from Master)\n",
-                      (unsigned long)hz);
+        logf("[link] RX M,1 %lu\n", (unsigned long)hz);
         motorStart(hz);
       } else {
-        logf("[link] bad motor sync: %s\n", line.c_str());
+        logf("[link] bad M: %.12s\n", line.c_str());
       }
     } else if (line == "P" || line.startsWith("P,")) {
       // Master ping → 동일 라인 echo (P,<nonce>)
       if (line == "P") {
         Serial1.print("P,ok\n");
-        logln("[link] RX ping → TX P,ok");
+        logln("[link] ping->P,ok");
       } else {
         Serial1.printf("%s\n", line.c_str());
-        logf("[link] RX ping → TX %s\n", line.c_str());
+        logf("[link] ping TX %.10s\n", line.c_str());
       }
     } else if (line.length() > 0) {
-      logf("[link] ignore: %s\n", line.c_str());
+      logf("[link] ign %.14s\n", line.c_str());
     }
     line = "";
   }
@@ -440,17 +438,20 @@ static void handleLinkSerial()
 
 static void printHelp()
 {
+  // ≤ TFT_LOG_ROWS(15) lines, each ≤ TFT_LOG_COLS(20)
   logln();
-  logln("Commands (Node A / Left / Slave):");
-  logln("  start [hz]     - motor start (default/current clk)");
-  logln("  stop           - motor stop");
-  logln("  clk <hz>       - set clock while running (100~10000)");
-  logln("  status         - running / lock / clk / sensor / sync / laser");
-  logln("  sensor         - print sensor DO/AO once");
-  logln("  laser on|off   - 650nm 라인 레이저 (Pin9 → NPN)");
-  logln("  theta <deg>    - 수동 θ1 송신 (UART 테스트용)");
-  logln("  help           - this help");
-  logln("  (also) Master R: start/stop→M,1|M,0 / ping→P,<n> echo");
+  logln("L Slave cmds");
+  logln(" start [hz]");
+  logln(" stop");
+  logln(" clk <hz>");
+  logln(" status");
+  logln(" sensor");
+  logln(" laser on|off");
+  logln(" theta <deg>");
+  logln(" help");
+  logln("R: start->M,1");
+  logln("R: stop->M,0");
+  logln("R: ping->P,n");
   logln();
 }
 
@@ -476,32 +477,29 @@ static void handleSerial()
     } else if (lower == "help" || lower == "?") {
       printHelp();
     } else if (lower == "stop") {
-      logln("[cmd] stop 수신");
+      logln("[cmd] stop");
       motorStop();
     } else if (lower == "status") {
-      logln("[cmd] status 수신");
-      logf("[status] running=%d locked=%d clk=%lu Hz hit=%d DO=%d AO=%d "
-                    "sync=%d period=%lu us laser=%d\n",
-                    g_running ? 1 : 0,
-                    isLocked() ? 1 : 0,
-                    (unsigned long)g_clkHz,
-                    isSensorHit() ? 1 : 0,
-                    digitalRead(PIN_SENSOR_DO),
-                    analogRead(PIN_SENSOR_AO),
-                    g_syncSeen ? 1 : 0,
-                    (unsigned long)g_periodUs,
-                    g_laserOn ? 1 : 0);
+      logln("[cmd] status");
+      logf(" run=%d lk=%d\n", g_running ? 1 : 0, isLocked() ? 1 : 0);
+      logf(" clk=%lu hit=%d\n",
+                    (unsigned long)g_clkHz, isSensorHit() ? 1 : 0);
+      logf(" DO=%d AO=%d\n",
+                    digitalRead(PIN_SENSOR_DO), analogRead(PIN_SENSOR_AO));
+      logf(" sync=%d p=%lu\n",
+                    g_syncSeen ? 1 : 0, (unsigned long)g_periodUs);
+      logf(" laser=%d\n", g_laserOn ? 1 : 0);
     } else if (lower == "sensor") {
-      logln("[cmd] sensor 수신");
-      logf("[sensor] hit=%d DO=%d AO=%d (active_low=%d)\n",
-                    isSensorHit() ? 1 : 0,
-                    digitalRead(PIN_SENSOR_DO),
+      logln("[cmd] sensor");
+      logf(" hit=%d DO=%d\n",
+                    isSensorHit() ? 1 : 0, digitalRead(PIN_SENSOR_DO));
+      logf(" AO=%d al=%d\n",
                     analogRead(PIN_SENSOR_AO),
                     SENSOR_DO_ACTIVE_LOW ? 1 : 0);
     } else if (lower.startsWith("laser")) {
       const int sp = lower.indexOf(' ');
       if (sp < 0) {
-        logln("[err] usage: laser on|off");
+        logln("[err] laser on|off");
       } else {
         const String arg = lower.substring(sp + 1);
         if (arg == "on") {
@@ -509,52 +507,50 @@ static void handleSerial()
         } else if (arg == "off") {
           setLaser(false);
         } else {
-          logln("[err] usage: laser on|off");
+          logln("[err] laser on|off");
         }
       }
     } else if (lower.startsWith("theta")) {
       const int sp = lower.indexOf(' ');
       if (sp < 0) {
-        logln("[err] usage: theta <deg>");
+        logln("[err] theta <deg>");
       } else {
         const float deg = lower.substring(sp + 1).toFloat();
-        logf("[cmd] 수동 θ1=%.2f° 송신\n", deg);
+        logf("[cmd] theta %.2f\n", deg);
         sendTheta1(deg);
       }
     } else if (lower.startsWith("start")) {
-      logln("[cmd] start 수신");
+      logln("[cmd] start");
       uint32_t hz = g_clkHz;
       const int sp = lower.indexOf(' ');
       if (sp > 0) {
         hz = (uint32_t)lower.substring(sp + 1).toInt();
       }
       if (hz < CLK_HZ_MIN || hz > CLK_HZ_MAX) {
-        logf("[err] clk out of range (%lu~%lu)\n",
+        logf("[err] clk %lu..%lu\n",
                       (unsigned long)CLK_HZ_MIN, (unsigned long)CLK_HZ_MAX);
       } else {
         motorStart(hz);
       }
     } else if (lower.startsWith("clk")) {
-      logln("[cmd] clk 수신");
+      logln("[cmd] clk");
       const int sp = lower.indexOf(' ');
       if (sp < 0) {
-        logln("[err] usage: clk <hz>");
+        logln("[err] clk <hz>");
       } else {
         const uint32_t hz = (uint32_t)lower.substring(sp + 1).toInt();
-        logf("[stage] CLK 변경 시도 → %lu Hz\n", (unsigned long)hz);
+        logf("[clk] try %lu\n", (unsigned long)hz);
         if (!applyClockHz(hz)) {
-          logf("[err] clk out of range (%lu~%lu)\n",
+          logf("[err] clk %lu..%lu\n",
                         (unsigned long)CLK_HZ_MIN, (unsigned long)CLK_HZ_MAX);
         } else if (!g_running) {
-          logf("[ok] clk set to %lu Hz (not running yet)\n",
-                        (unsigned long)g_clkHz);
+          logf("[ok] clk=%lu idle\n", (unsigned long)g_clkHz);
         } else {
-          logf("[ok] clk -> %lu Hz (동작 중 반영)\n",
-                        (unsigned long)g_clkHz);
+          logf("[ok] clk=%lu run\n", (unsigned long)g_clkHz);
         }
       }
     } else {
-      logf("[err] unknown: %s\n", line.c_str());
+      logf("[err] %.14s\n", line.c_str());
       printHelp();
     }
 
@@ -574,49 +570,47 @@ void setup()
   tftLogBegin("Node A / Left");
 
   logln();
-  logln("[stage] ===== setup 시작 (Node A / Left / Slave) =====");
-  logln("[stage] 1/8 USB Serial 115200 + Serial1 link ready");
-  logf("[stage]    LINK_BAUD=%lu  TX1=Pin1 → Master RX1\n",
-                (unsigned long)LINK_BAUD);
-  logln("[stage] 2/8 ST7789 TFT log (CS10 DC8 RST7 BL14 SPI 11/13)");
+  logln("[setup] L Slave");
+  logln("1/8 USB+UART");
+  logf(" baud=%lu TX1=1\n", (unsigned long)LINK_BAUD);
+  logln("2/8 TFT CS10");
 
-  logln("[stage] 3/8 LD 핀 INPUT_PULLUP 설정");
+  logln("3/8 LD pullup");
   pinMode(PIN_MOTOR_LD, INPUT_PULLUP);
 
-  logln("[stage] 4/8 S/S·CLK 초기화 (정지 / Hi-Z)");
+  logln("4/8 S/S CLK HiZ");
   odWrite(PIN_MOTOR_SS, true);   // stop
   odWrite(PIN_MOTOR_CLK, true);  // idle high (Hi-Z)
 
-  logln("[stage] 5/8 센서 DO/AO 입력 설정");
+  logln("5/8 sensor I/O");
   pinMode(PIN_SENSOR_DO, INPUT);
   g_lastHit = isSensorHit();
   g_sensorReady = true;
-  logf("[stage] 센서 초기값 hit=%d DO=%d AO=%d\n",
-                g_lastHit ? 1 : 0,
-                digitalRead(PIN_SENSOR_DO),
-                analogRead(PIN_SENSOR_AO));
+  logf(" hit=%d DO=%d\n",
+                g_lastHit ? 1 : 0, digitalRead(PIN_SENSOR_DO));
 
-  logln("[stage] 6/8 Sync 인터럽트 설정");
+  logln("6/8 Sync IRQ");
   pinMode(PIN_SYNC, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_SYNC), syncIsr,
                   SYNC_ACTIVE_FALLING ? FALLING : RISING);
 
-  logln("[stage] 7/8 레이저 Pin9 (NPN) 초기화");
+  logln("7/8 laser pin9");
   pinMode(PIN_LASER, OUTPUT);
   setLaser(LASER_DEFAULT_ON);
 
-  logln("[stage] 8/8 초기 상태: running=0, waiting for command");
-  logln("laserModuleL / Node A (Slave) ready");
-  logf("Default CLK = %lu Hz, SCAN_ANGLE=%.1f deg\n",
+  logln("8/8 ready");
+  // 한 화면(15줄) 안에 들어가게 요약 — help는 `help` 명령으로
+  logln("laserModuleL OK");
+  logf("CLK=%lu scan=%.0f\n",
                 (unsigned long)CLK_HZ_DEFAULT, SCAN_ANGLE_DEG);
-  logln("Power: LM2596 5V->VIN, GND common / Laser: 3.3V->RED, Pin9->NPN");
-  logln("Sensor AO|DO|GND|VCC -> A0|Pin5|GND|3.3V  Sync=6 Laser=9");
-  logln("UART -> Master: TX1(1)/RX1(0)/GND");
-  logln("TFT: GND VCC SCL13 SDA11 RES7 DC8 CS10 BL14");
-  printHelp();
-  logln("Wire V=24V(external), G=GND common, then: laser on / start");
-  logln("또는 Master(R)에서 start → L 자동 기동");
-  logln("[stage] ===== setup 완료 =====");
+  logln("VIN5V GND common");
+  logln("AO|DO->A0|5");
+  logln("Sync6 Laser9");
+  logln("UART 1<->0 GND");
+  logln("then: laser on");
+  logln("      start");
+  logln("or R: start");
+  logln("[setup] done");
 }
 
 void loop()
@@ -629,10 +623,8 @@ void loop()
   if (g_running && locked != g_lastLocked) {
     g_lastLocked = locked;
     if (locked) {
-      logln("[stage] LD=LOW → PLL LOCKED (속도 동기 완료)");
       logln("[motor] LOCKED");
     } else {
-      logln("[stage] LD=HIGH → unlocked (동기 해제)");
       logln("[motor] unlocked");
     }
   }
