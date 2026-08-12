@@ -59,7 +59,7 @@ namespace PinkSoft.EditorTools
             var (hitRts, hitImgs) = CreateHitMarkers(canvasGo.transform);
 
             var textPanel = CreateImage(canvasGo.transform, "TextPanel", Panel, stretch: false);
-            Place(textPanel.rectTransform, 0.22f, 0.20f, 0.78f, 0.93f);
+            Place(textPanel.rectTransform, 0.14f, 0.20f, 0.62f, 0.93f);
             var title = CreateText(textPanel.transform, "TitleText", "BDS Check — Teensy R HID", 40, TextPrimary, FontStyle.Bold);
             Place(title.rectTransform, 0.04f, 0.84f, 0.96f, 0.98f);
             var status = CreateText(textPanel.transform, "StatusText", "status", 22, TextMuted, FontStyle.Normal);
@@ -70,8 +70,10 @@ namespace PinkSoft.EditorTools
             Place(body.rectTransform, 0.04f, 0.04f, 0.96f, 0.52f);
             body.alignment = TextAnchor.UpperCenter;
 
+            var serial = CreateSerialPanel(canvasGo.transform);
+
             var buttonBar = CreateImage(canvasGo.transform, "ButtonBar", Panel, stretch: false);
-            Place(buttonBar.rectTransform, 0.22f, 0.02f, 0.78f, 0.16f);
+            Place(buttonBar.rectTransform, 0.14f, 0.02f, 0.62f, 0.16f);
 
             var introGroup = new GameObject("IntroButtons", typeof(RectTransform));
             introGroup.transform.SetParent(buttonBar.transform, false);
@@ -134,12 +136,236 @@ namespace PinkSoft.EditorTools
 
             so.ApplyModifiedPropertiesWithoutUndo();
 
+            var monitor = root.AddComponent<TeensySerialMonitor>();
+            var mso = new SerializedObject(monitor);
+            mso.FindProperty("portDropdown").objectReferenceValue = serial.PortDropdown;
+            mso.FindProperty("refreshButton").objectReferenceValue = serial.RefreshButton;
+            mso.FindProperty("connectButton").objectReferenceValue = serial.ConnectButton;
+            mso.FindProperty("connectButtonLabel").objectReferenceValue =
+                serial.ConnectButton.transform.Find("Label")?.GetComponent<Text>();
+            mso.FindProperty("statusLabel").objectReferenceValue = serial.StatusLabel;
+            mso.FindProperty("logText").objectReferenceValue = serial.LogText;
+            mso.FindProperty("logScroll").objectReferenceValue = serial.LogScroll;
+            mso.FindProperty("commandInput").objectReferenceValue = serial.CommandInput;
+            mso.FindProperty("sendButton").objectReferenceValue = serial.SendButton;
+            mso.FindProperty("injectButton").objectReferenceValue = serial.InjectButton;
+            mso.FindProperty("statusCmdButton").objectReferenceValue = serial.StatusCmdButton;
+            mso.ApplyModifiedPropertiesWithoutUndo();
+
             EditorSceneManager.SaveScene(scene, ScenePath);
             AssetDatabase.Refresh();
             EnsureInBuildSettings();
             Debug.Log(
-                $"BdsCheck uGUI scene rebuilt: {ScenePath} — Hierarchy에서 TextPanel/ButtonBar를 편집하세요. " +
+                $"BdsCheck uGUI scene rebuilt: {ScenePath} — Hierarchy에서 TextPanel/ButtonBar/SerialPanel을 편집하세요. " +
                 "(Rebuild는 씬을 덮어씁니다.)");
+        }
+
+        struct SerialPanelRefs
+        {
+            public Dropdown PortDropdown;
+            public Button RefreshButton;
+            public Button ConnectButton;
+            public Text StatusLabel;
+            public Text LogText;
+            public ScrollRect LogScroll;
+            public InputField CommandInput;
+            public Button SendButton;
+            public Button InjectButton;
+            public Button StatusCmdButton;
+        }
+
+        static SerialPanelRefs CreateSerialPanel(Transform canvas)
+        {
+            var panel = CreateImage(canvas, "SerialPanel", Panel, stretch: false);
+            panel.raycastTarget = true;
+            Place(panel.rectTransform, 0.64f, 0.02f, 0.98f, 0.93f);
+
+            var heading = CreateText(panel.transform, "SerialTitle", "Teensy USB Serial", 26, TextPrimary, FontStyle.Bold);
+            Place(heading.rectTransform, 0.04f, 0.94f, 0.96f, 0.99f);
+            heading.alignment = TextAnchor.MiddleLeft;
+
+            var baud = CreateText(panel.transform, "BaudLabel", "115200 8N1", 16, TextMuted, FontStyle.Normal);
+            Place(baud.rectTransform, 0.04f, 0.90f, 0.96f, 0.94f);
+            baud.alignment = TextAnchor.MiddleLeft;
+
+            var dropdown = CreateDropdown(panel.transform, "PortDropdown");
+            Place(dropdown.GetComponent<RectTransform>(), 0.04f, 0.83f, 0.96f, 0.89f);
+
+            var refreshBtn = CreateButton(panel.transform, "Refresh", ButtonFace);
+            Place(refreshBtn.GetComponent<RectTransform>(), 0.04f, 0.76f, 0.48f, 0.82f);
+            SetButtonLabelSize(refreshBtn, 20);
+
+            var connectBtn = CreateButton(panel.transform, "연결", Accent);
+            Place(connectBtn.GetComponent<RectTransform>(), 0.52f, 0.76f, 0.96f, 0.82f);
+            SetButtonLabelSize(connectBtn, 20);
+
+            var status = CreateText(panel.transform, "SerialStatus", "대기", 16, TextMuted, FontStyle.Normal);
+            Place(status.rectTransform, 0.04f, 0.71f, 0.96f, 0.76f);
+            status.alignment = TextAnchor.MiddleLeft;
+
+            var (scroll, logText) = CreateLogScroll(panel.transform);
+            Place(scroll.GetComponent<RectTransform>(), 0.04f, 0.18f, 0.96f, 0.70f);
+
+            var cmdBg = CreateImage(panel.transform, "CommandField", new Color(0.05f, 0.06f, 0.08f, 1f), stretch: false);
+            cmdBg.raycastTarget = true;
+            Place(cmdBg.rectTransform, 0.04f, 0.10f, 0.72f, 0.16f);
+            var input = cmdBg.gameObject.AddComponent<InputField>();
+            var placeholder = CreateText(cmdBg.transform, "Placeholder", "명령 (예: status)", 18, new Color(0.5f, 0.52f, 0.55f, 1f), FontStyle.Normal);
+            Stretch(placeholder.rectTransform);
+            placeholder.alignment = TextAnchor.MiddleLeft;
+            placeholder.raycastTarget = false;
+            var inputText = CreateText(cmdBg.transform, "Text", "", 18, TextPrimary, FontStyle.Normal);
+            Stretch(inputText.rectTransform);
+            inputText.alignment = TextAnchor.MiddleLeft;
+            inputText.supportRichText = false;
+            input.textComponent = inputText;
+            input.placeholder = placeholder;
+            input.lineType = InputField.LineType.SingleLine;
+
+            var sendBtn = CreateButton(panel.transform, "전송", Accent);
+            Place(sendBtn.GetComponent<RectTransform>(), 0.74f, 0.10f, 0.96f, 0.16f);
+            SetButtonLabelSize(sendBtn, 18);
+
+            var injectBtn = CreateButton(panel.transform, "inject 30 30", ButtonFace);
+            Place(injectBtn.GetComponent<RectTransform>(), 0.04f, 0.02f, 0.48f, 0.08f);
+            SetButtonLabelSize(injectBtn, 16);
+
+            var statusCmdBtn = CreateButton(panel.transform, "status", ButtonFace);
+            Place(statusCmdBtn.GetComponent<RectTransform>(), 0.52f, 0.02f, 0.96f, 0.08f);
+            SetButtonLabelSize(statusCmdBtn, 16);
+
+            return new SerialPanelRefs
+            {
+                PortDropdown = dropdown,
+                RefreshButton = refreshBtn,
+                ConnectButton = connectBtn,
+                StatusLabel = status,
+                LogText = logText,
+                LogScroll = scroll,
+                CommandInput = input,
+                SendButton = sendBtn,
+                InjectButton = injectBtn,
+                StatusCmdButton = statusCmdBtn
+            };
+        }
+
+        static void SetButtonLabelSize(Button button, int size)
+        {
+            var label = button.transform.Find("Label")?.GetComponent<Text>();
+            if (label != null)
+                label.fontSize = size;
+        }
+
+        static (ScrollRect scroll, Text logText) CreateLogScroll(Transform parent)
+        {
+            var scrollGo = new GameObject("SerialLogScroll", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(ScrollRect));
+            scrollGo.transform.SetParent(parent, false);
+            var scrollImg = scrollGo.GetComponent<Image>();
+            scrollImg.color = new Color(0.04f, 0.05f, 0.06f, 1f);
+            scrollImg.raycastTarget = true;
+            var scroll = scrollGo.GetComponent<ScrollRect>();
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 30f;
+            scroll.inertia = false;
+
+            var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(RectMask2D));
+            viewport.transform.SetParent(scrollGo.transform, false);
+            Stretch(viewport.GetComponent<RectTransform>());
+            viewport.GetComponent<Image>().color = Color.white;
+            viewport.GetComponent<Image>().raycastTarget = true;
+
+            var content = new GameObject("Content", typeof(RectTransform));
+            content.transform.SetParent(viewport.transform, false);
+            var contentRt = content.GetComponent<RectTransform>();
+            contentRt.anchorMin = new Vector2(0f, 1f);
+            contentRt.anchorMax = new Vector2(1f, 1f);
+            contentRt.pivot = new Vector2(0.5f, 1f);
+            contentRt.anchoredPosition = Vector2.zero;
+            contentRt.sizeDelta = new Vector2(0f, 0f);
+
+            var log = CreateText(content.transform, "LogText", "", 16, new Color(0.78f, 0.86f, 0.72f, 1f), FontStyle.Normal);
+            var logRt = log.rectTransform;
+            logRt.anchorMin = new Vector2(0f, 1f);
+            logRt.anchorMax = new Vector2(1f, 1f);
+            logRt.pivot = new Vector2(0.5f, 1f);
+            logRt.anchoredPosition = Vector2.zero;
+            logRt.sizeDelta = new Vector2(0f, 40f);
+            log.alignment = TextAnchor.UpperLeft;
+            log.horizontalOverflow = HorizontalWrapMode.Wrap;
+            log.verticalOverflow = VerticalWrapMode.Overflow;
+
+            scroll.viewport = viewport.GetComponent<RectTransform>();
+            scroll.content = contentRt;
+            return (scroll, log);
+        }
+
+        static Dropdown CreateDropdown(Transform parent, string name)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Dropdown));
+            go.transform.SetParent(parent, false);
+            var image = go.GetComponent<Image>();
+            image.color = new Color(0.10f, 0.12f, 0.15f, 1f);
+            image.raycastTarget = true;
+            var dropdown = go.GetComponent<Dropdown>();
+
+            var label = CreateText(go.transform, "Label", "포트 선택", 18, TextPrimary, FontStyle.Normal);
+            Place(label.rectTransform, 0.04f, 0.05f, 0.88f, 0.95f);
+            label.alignment = TextAnchor.MiddleLeft;
+            label.raycastTarget = false;
+
+            var arrow = CreateText(go.transform, "Arrow", "▾", 18, TextMuted, FontStyle.Normal);
+            Place(arrow.rectTransform, 0.88f, 0.05f, 0.98f, 0.95f);
+            arrow.alignment = TextAnchor.MiddleCenter;
+
+            var template = new GameObject("Template", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(ScrollRect));
+            template.transform.SetParent(go.transform, false);
+            var templateRt = template.GetComponent<RectTransform>();
+            templateRt.anchorMin = new Vector2(0f, 0f);
+            templateRt.anchorMax = new Vector2(1f, 0f);
+            templateRt.pivot = new Vector2(0.5f, 1f);
+            templateRt.sizeDelta = new Vector2(0f, 160f);
+            templateRt.anchoredPosition = Vector2.zero;
+            template.GetComponent<Image>().color = new Color(0.08f, 0.09f, 0.11f, 1f);
+            var templateScroll = template.GetComponent<ScrollRect>();
+            templateScroll.horizontal = false;
+            templateScroll.vertical = true;
+            template.SetActive(false);
+
+            var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Mask));
+            viewport.transform.SetParent(template.transform, false);
+            Stretch(viewport.GetComponent<RectTransform>());
+            viewport.GetComponent<Image>().color = Color.white;
+            viewport.GetComponent<Mask>().showMaskGraphic = false;
+
+            var content = new GameObject("Content", typeof(RectTransform));
+            content.transform.SetParent(viewport.transform, false);
+            var contentRt = content.GetComponent<RectTransform>();
+            contentRt.anchorMin = new Vector2(0f, 1f);
+            contentRt.anchorMax = new Vector2(1f, 1f);
+            contentRt.pivot = new Vector2(0.5f, 1f);
+            contentRt.sizeDelta = new Vector2(0f, 36f);
+
+            var item = new GameObject("Item", typeof(RectTransform), typeof(Toggle));
+            item.transform.SetParent(content.transform, false);
+            Stretch(item.GetComponent<RectTransform>());
+            var itemBg = item.AddComponent<Image>();
+            itemBg.color = new Color(0.12f, 0.14f, 0.17f, 1f);
+            var toggle = item.GetComponent<Toggle>();
+            toggle.targetGraphic = itemBg;
+
+            var itemLabel = CreateText(item.transform, "Item Label", "Option", 18, TextPrimary, FontStyle.Normal);
+            Stretch(itemLabel.rectTransform);
+            itemLabel.alignment = TextAnchor.MiddleLeft;
+
+            templateScroll.viewport = viewport.GetComponent<RectTransform>();
+            templateScroll.content = contentRt;
+            dropdown.template = templateRt;
+            dropdown.captionText = label;
+            dropdown.itemText = itemLabel;
+            dropdown.options = new System.Collections.Generic.List<Dropdown.OptionData>();
+            return dropdown;
         }
 
         static RectTransform CreateTargetMarker(Transform parent)

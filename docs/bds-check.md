@@ -87,6 +87,19 @@ Intro/Checking/Summary 전 구간에서 TextPanel의 **HidStatusText**가 갱신
 
 장치명만으로 Teensy와 트랙패드를 구분하지는 않는다. 목적은 **클릭·좌표 수신** 확인이다.
 
+## Teensy USB Serial 패널
+
+오른쪽 **SerialPanel**에서 Teensy USB Serial(115200)을 연결해 ASCII 로그를 본다.
+
+| 조작 | 동작 |
+|------|------|
+| 포트 Dropdown + Refresh | `/dev/cu.usb*` · `COMx` 목록 |
+| 연결 / 해제 | `System.IO.Ports`로 Open/Close |
+| 로그 Scroll | 펌웨어 `logf` / Serial 출력 |
+| `inject 30 30` / `status` | 명령 전송 (HID 교차 확인용) |
+
+플러그인: macOS는 `PosixSerialSession`(libc termios). Windows는 미지원.
+
 씬 UI를 코드로 다시 만들 때: **PinkSoft/Rebuild BdsCheck Scene** (기존 Hierarchy 수동 편집은 덮어씀).
 
 ## 관련 코드 · 씬
@@ -96,12 +109,14 @@ Intro/Checking/Summary 전 구간에서 TextPanel의 **HidStatusText**가 갱신
 | `teensy41/laserModuleR/laserModuleR.ino` | 삼각측량 → HID `moveTo`/`click` |
 | `Assets/Scenes/BdsCheck.unity` | BDS Check 전용 씬 (**uGUI** — Hierarchy에서 레이아웃 편집) |
 | `Assets/Core/Runtime/BdsCheck/BdsCheckSceneController.cs` | 매칭·버튼·HID last-hit HUD |
+| `Assets/Core/Runtime/BdsCheck/TeensySerialMonitor.cs` | USB 포트 선택·시리얼 로그·명령 전송 |
+| `Assets/Core/Runtime/BdsCheck/PosixSerialSession.cs` | macOS libc termios 시리얼 Open/Read/Write |
 | `Assets/Core/Editor/BdsCheckSceneBuilder.cs` | **PinkSoft/Rebuild BdsCheck Scene** |
 | `Assets/BDS/Runtime/Input/TouchInputSource.cs` | HID 마우스/터치 → `InputHit` |
 | `Assets/Core/Runtime/BdsService.cs` | Check 중 ActiveInput = Touch(HID) |
 | `Assets/Core/Runtime/Lobby/StartMenuUI.cs` | → `LoadScene("BdsCheck")` |
 
-UI 위치·폰트·색은 `BdsCheckCanvas`의 `TextPanel` / `ButtonBar` / `TargetMarker`를 에디터에서 직접 수정한다.
+UI 위치·폰트·색은 `BdsCheckCanvas`의 `TextPanel` / `ButtonBar` / `SerialPanel` / `TargetMarker`를 에디터에서 직접 수정한다.
 
 
 ## 이후 (비범위)
