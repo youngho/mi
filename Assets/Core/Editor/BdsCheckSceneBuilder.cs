@@ -55,9 +55,6 @@ namespace PinkSoft.EditorTools
 
             CreateImage(canvasGo.transform, "Backdrop", new Color(0.05f, 0.07f, 0.09f, 0.92f), stretch: true);
 
-            var target = CreateTargetMarker(canvasGo.transform);
-            var (hitRts, hitImgs) = CreateHitMarkers(canvasGo.transform);
-
             var textPanel = CreateImage(canvasGo.transform, "TextPanel", Panel, stretch: false);
             Place(textPanel.rectTransform, 0.14f, 0.20f, 0.62f, 0.93f);
             var title = CreateText(textPanel.transform, "TitleText", "BDS Check — Teensy R HID", 40, TextPrimary, FontStyle.Bold);
@@ -74,6 +71,12 @@ namespace PinkSoft.EditorTools
 
             var buttonBar = CreateImage(canvasGo.transform, "ButtonBar", Panel, stretch: false);
             Place(buttonBar.rectTransform, 0.14f, 0.02f, 0.62f, 0.16f);
+
+            // 마커는 UI 패널보다 위(Hierarchy 마지막)에 그려지도록 마지막에 생성
+            var target = CreateTargetMarker(canvasGo.transform);
+            var (hitRts, hitImgs) = CreateHitMarkers(canvasGo.transform);
+            target.SetAsLastSibling();
+            hitRts[0].parent.SetAsLastSibling();
 
             var introGroup = new GameObject("IntroButtons", typeof(RectTransform));
             introGroup.transform.SetParent(buttonBar.transform, false);
