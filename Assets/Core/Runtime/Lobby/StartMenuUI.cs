@@ -7,7 +7,8 @@ using UnityEngine.UI;
 namespace PinkSoft.Core.Lobby
 {
     /// <summary>
-    /// 접선(Clearance) 씬 UI. 파티 등록 후 Station 씬으로 전환한다.
+    /// 접선(Clearance) 씬의 동작 컨트롤러.
+    /// 레이아웃·폰트·사이즈는 씬 Hierarchy에서만 조정하고, 여기서는 입력/파티/씬 전환만 처리한다.
     /// 에이전트·API는 <see cref="AgentSession"/> / <see cref="PinkSoftApiClient"/> (DDOL)에 보관한다.
     /// </summary>
     public sealed class StartMenuUI : MonoBehaviour
@@ -36,6 +37,11 @@ namespace PinkSoft.Core.Lobby
         [SerializeField] TypewriterCodeLabel typewriterCodeLabel = null!;
         [SerializeField] RadioAnnouncer radioAnnouncer = null!;
 
+        [Header("Party slot state colors (Inspector)")]
+        [SerializeField] Color partySlotFilledColor = new Color(0.16f, 0.22f, 0.28f, 0.85f);
+        [SerializeField] Color partySlotFilledTextColor = new Color(0.95f, 0.94f, 0.92f, 1f);
+        [SerializeField] Color partySlotNobodyTextColor = new Color(0.95f, 0.72f, 0.55f, 1f);
+
         [Header("Shared HUD")]
         [SerializeField] GameObject statusToast = null!;
         [SerializeField] Text statusText = null!;
@@ -58,8 +64,6 @@ namespace PinkSoft.Core.Lobby
             if (apiClient != null && apiClient != sharedApi)
                 sharedApi.CopySettingsFrom(apiClient);
             apiClient = sharedApi;
-
-            EnsurePortraitBindings();
 
             if (hideCursor)
                 Cursor.visible = false;
@@ -152,11 +156,6 @@ namespace PinkSoft.Core.Lobby
 
         void RefreshPartyListUi(AgentSession? session)
         {
-            EnsurePortraitBindings();
-
-            var filled = new Color(0.16f, 0.22f, 0.28f, 0.85f);
-            var filledText = new Color(0.95f, 0.94f, 0.92f, 1f);
-            var nobodyAccent = new Color(0.95f, 0.72f, 0.55f, 1f);
             var portrait = ResolveNobodyPortrait();
 
             for (var i = 0; i < AgentSession.MaxAgents; i++)
@@ -174,7 +173,7 @@ namespace PinkSoft.Core.Lobby
                 }
 
                 if (i < partySlotBackgrounds.Length && partySlotBackgrounds[i] != null)
-                    partySlotBackgrounds[i].color = filled;
+                    partySlotBackgrounds[i].color = partySlotFilledColor;
 
                 var slot = session!.Party[i];
                 var isNobody = slot.IsNobody;
@@ -184,12 +183,12 @@ namespace PinkSoft.Core.Lobby
                     if (isNobody)
                     {
                         partySlotTexts[i].text = "Nobody\nGuest · 기본값";
-                        partySlotTexts[i].color = nobodyAccent;
+                        partySlotTexts[i].color = partySlotNobodyTextColor;
                     }
                     else
                     {
                         partySlotTexts[i].text = $"{slot.User.nickname}\nLv.{slot.User.currentLevel}";
-                        partySlotTexts[i].color = filledText;
+                        partySlotTexts[i].color = partySlotFilledTextColor;
                     }
                 }
 
@@ -218,72 +217,6 @@ namespace PinkSoft.Core.Lobby
                 _nobodyPortraitResolved = Resources.Load<Texture2D>("PartyPortrait/NobodyPortrait");
 
             return _nobodyPortraitResolved;
-        }
-
-        void EnsurePortraitBindings()
-        {
-            if (partySlotPortraits == null || partySlotPortraits.Length != AgentSession.MaxAgents)
-                partySlotPortraits = new RawImage[AgentSession.MaxAgents];
-
-            for (var i = 0; i < AgentSession.MaxAgents; i++)
-            {
-                if (i >= partySlotRoots.Length || partySlotRoots[i] == null)
-                    continue;
-
-                var root = partySlotRoots[i];
-
-                var partyPanel = root.transform.parent != null ? root.transform.parent.parent as RectTransform : null;
-                if (partyPanel != null && partyPanel.name == "PartyPanel")
-                {
-                    partyPanel.anchorMin = new Vector2(0.05f, 2f / 3f - 0.16f);
-                    partyPanel.anchorMax = new Vector2(0.95f, 2f / 3f + 0.14f);
-                    partyPanel.offsetMin = Vector2.zero;
-                    partyPanel.offsetMax = Vector2.zero;
-                }
-
-                var le = root.GetComponent<LayoutElement>();
-                if (le != null)
-                {
-                    le.minWidth = 140;
-                    le.preferredWidth = 168;
-                    le.minHeight = 200;
-                    le.preferredHeight = 220;
-                }
-
-                if (partySlotPortraits[i] == null)
-                {
-                    var existing = root.transform.Find("Portrait");
-                    if (existing != null)
-                        partySlotPortraits[i] = existing.GetComponent<RawImage>();
-                }
-
-                if (partySlotPortraits[i] == null)
-                {
-                    var go = new GameObject("Portrait", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
-                    go.transform.SetParent(root.transform, false);
-                    go.transform.SetAsFirstSibling();
-                    var rt = go.GetComponent<RectTransform>();
-                    rt.anchorMin = new Vector2(0.08f, 0.28f);
-                    rt.anchorMax = new Vector2(0.92f, 0.94f);
-                    rt.offsetMin = Vector2.zero;
-                    rt.offsetMax = Vector2.zero;
-                    var raw = go.GetComponent<RawImage>();
-                    raw.raycastTarget = false;
-                    raw.color = Color.white;
-                    partySlotPortraits[i] = raw;
-                }
-
-                if (i < partySlotTexts.Length && partySlotTexts[i] != null)
-                {
-                    var labelRt = partySlotTexts[i].rectTransform;
-                    labelRt.anchorMin = new Vector2(0.04f, 0.02f);
-                    labelRt.anchorMax = new Vector2(0.96f, 0.28f);
-                    labelRt.offsetMin = Vector2.zero;
-                    labelRt.offsetMax = Vector2.zero;
-                    partySlotTexts[i].alignment = TextAnchor.MiddleCenter;
-                    partySlotTexts[i].fontSize = 16;
-                }
-            }
         }
 
         void SetIdentityButtonsInteractable(bool value)
