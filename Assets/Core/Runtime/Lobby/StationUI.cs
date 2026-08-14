@@ -22,6 +22,14 @@ namespace PinkSoft.Core.Lobby
         [SerializeField] GameObject statusToast = null!;
         [SerializeField] Text statusText = null!;
 
+        [Header("Party Bar")]
+        [SerializeField] GameObject[] partyMemberChips = System.Array.Empty<GameObject>();
+        [SerializeField] Text[] partyMemberLabels = System.Array.Empty<Text>();
+        [SerializeField] Image[] partyMemberChipImages = System.Array.Empty<Image>();
+        [SerializeField] Button editPartyButton = null!;
+        [SerializeField] Color chipMemberColor = new Color(0.62f, 0.44f, 0.20f, 0.95f);
+        [SerializeField] Color chipNobodyColor = new Color(0.34f, 0.36f, 0.40f, 0.95f);
+
         [Header("Options")]
         [SerializeField] bool submitTestResultOnSelect = true;
         [SerializeField] bool hideCursor;
@@ -49,6 +57,7 @@ namespace PinkSoft.Core.Lobby
                 statusToast.SetActive(false);
 
             Bind(logoutButton, OnLogout);
+            Bind(editPartyButton, OnEditParty);
             Bind(quitButton, OnQuit);
             Bind(bdsCheckButton, OnOpenBdsCheck);
 
@@ -76,9 +85,28 @@ namespace PinkSoft.Core.Lobby
         void RefreshPartyPanel()
         {
             var session = AgentSession.Instance;
-            if (stationAgentText == null || session == null)
+            if (session == null)
                 return;
-            stationAgentText.text = session.BuildPartySummary() + "\n\n위 목록에서 미션을 고르세요.";
+
+            var count = partyMemberChips.Length;
+            for (var i = 0; i < count; i++)
+            {
+                var occupied = i < session.PartyCount;
+                if (partyMemberChips[i] != null)
+                    partyMemberChips[i].SetActive(occupied);
+                if (!occupied)
+                    continue;
+
+                var slot = session.Party[i];
+                var nick = slot.IsNobody ? AgentSession.NobodyNickname : slot.User.nickname;
+                if (i < partyMemberLabels.Length && partyMemberLabels[i] != null)
+                    partyMemberLabels[i].text = nick;
+                if (i < partyMemberChipImages.Length && partyMemberChipImages[i] != null)
+                    partyMemberChipImages[i].color = slot.IsNobody ? chipNobodyColor : chipMemberColor;
+            }
+
+            if (stationAgentText != null)
+                stationAgentText.text = $"파티 {session.PartyCount}/{AgentSession.MaxAgents}";
         }
 
         IEnumerator PrefetchCatalog()
@@ -182,6 +210,9 @@ namespace PinkSoft.Core.Lobby
         }
 
         public void OnLogout() => AgentSession.Require().RevokeAndReturnToRendezvous();
+
+        /// <summary>파티 수정 — 클리어런스는 유지한 채 이전(접선) 씬으로 복귀.</summary>
+        public void OnEditParty() => AgentSession.Require().ReturnToRendezvous(keepParty: true);
 
         public void OnOpenBdsCheck() => SceneManager.LoadScene(AgentSession.BdsCheckSceneName);
 
