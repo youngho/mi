@@ -100,7 +100,7 @@ Intro/Checking/Summary 전 구간에서 TextPanel의 **HidStatusText**가 갱신
 
 플러그인: macOS는 `PosixSerialSession`(libc termios). Windows는 미지원.
 
-씬 UI를 코드로 다시 만들 때: **PinkSoft/Rebuild BdsCheck Scene** (기존 Hierarchy 수동 편집은 덮어씀).
+씬 UI는 `BdsCheckCanvas` Hierarchy에서 직접 편집한다.
 
 ## 관련 코드 · 씬
 
@@ -111,7 +111,6 @@ Intro/Checking/Summary 전 구간에서 TextPanel의 **HidStatusText**가 갱신
 | `Assets/Core/Runtime/BdsCheck/BdsCheckSceneController.cs` | 매칭·버튼·HID last-hit HUD |
 | `Assets/Core/Runtime/BdsCheck/TeensySerialMonitor.cs` | USB 포트 선택·시리얼 로그·명령 전송 |
 | `Assets/Core/Runtime/BdsCheck/PosixSerialSession.cs` | macOS libc termios 시리얼 Open/Read/Write |
-| `Assets/Core/Editor/BdsCheckSceneBuilder.cs` | **PinkSoft/Rebuild BdsCheck Scene** |
 | `Assets/BDS/Runtime/Input/TouchInputSource.cs` | HID 마우스/터치 → `InputHit` |
 | `Assets/Core/Runtime/BdsService.cs` | Check 중 ActiveInput = Touch(HID) |
 | `Assets/Core/Runtime/Lobby/StartMenuUI.cs` | → `LoadScene("BdsCheck")` |
