@@ -7,6 +7,10 @@ logs/*.bin
 bin/
 obj/
 
+# 임시 스크린샷 캡처
+Assets/Screenshots/
+Assets/Screenshots.meta
+
 # Unity
 [Ll]ibrary/
 [Tt]emp/
