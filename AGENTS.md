@@ -47,6 +47,34 @@ identityStatusText.text = "신원 확인 중…";
 3. C#에는 SerializeField 바인딩과 클릭/플로우 로직만 추가·수정한다
 4. Play 모드에서 레이아웃이 코드에 의해 밀리지 않는지 확인한다
 
+## Unity 화면 캡처 (중요 — 잊지 말 것)
+
+씬 UI를 눈으로 확인할 때는 **Unity MCP `manage_camera`의 `screenshot` 액션**을 쓴다.
+
+- 기본 호출: `manage_camera(action="screenshot", capture_source="game_view", include_image=true, max_resolution=1024, screenshot_file_name="...")`
+  - `camera`를 지정하지 않으면 `ScreenCapture` API로 **Screen Space - Overlay UI까지 포함** 캡처된다.
+  - `include_image=true`면 base64 인라인 이미지로 바로 확인 가능. 저장 폴더 기본값은 `Assets/Screenshots/`.
+- **편집(Edit) 모드에서 `game_view`는 Overlay UI가 렌더되지 않아 거의 검은 화면**이 나온다. UI를 보려면:
+  1. `manage_editor(action="play")`로 **Play 모드 진입** 후 캡처, 또는
+  2. `capture_source="scene_view"` + `view_target="StationCanvas"`로 Scene View를 프레이밍해 캡처(편집 모드에서도 캔버스가 보임).
+- **Station 씬은 파티가 없으면 Awake에서 Rendezvous로 되돌아간다.** Play 모드로 Station을 보려면 파티를 주입한다:
+
+```csharp
+// execute_code (play 모드)
+var s = PinkSoft.Core.AgentSession.Ensure();
+if (s.PartyCount == 0) {
+    var u = new PinkSoft.MissionSDK.RuntimeUserData();
+    u.nickname = "KAI"; u.userId = "u1"; u.currentLevel = 7;
+    u.equipment = new PinkSoft.MissionSDK.EquipmentStats();
+    s.TryAddAgent(u, false);
+    s.TryAddNobody();
+}
+if (!s.IsAtStation) s.EnterStationAndLoadScene();
+```
+
+- 확인이 끝나면 `manage_editor(action="stop")`로 Play 모드를 종료한다.
+- `ScreenCapture.CaptureScreenshot`를 `execute_code`로 직접 부르는 방식은 편집 모드에서 프레임이 갱신되지 않아 **캐시/검은 화면**으로 실패하니 쓰지 말 것.
+
 ## 기타
 
 - 커밋/푸시는 사용자가 요청했을 때만 한다
