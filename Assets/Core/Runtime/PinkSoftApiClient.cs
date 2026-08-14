@@ -12,7 +12,7 @@ namespace PinkSoft.Core
     {
         public static PinkSoftApiClient? Instance { get; private set; }
 
-        [SerializeField] string baseUrl = "http://localhost:8080";
+        [SerializeField] string baseUrl = "https://pinksoft.io";
         [SerializeField] string apiRoot = "/mi/api";
 
         string? _token;
