@@ -66,12 +66,6 @@ namespace PinkSoft.Core.Lobby
 
             RefreshPartyPanel();
             StartCoroutine(PrefetchCatalog());
-
-            var code = session.EnsureRendezvousCode();
-            var radio = session.GetComponent<RadioAnnouncer>()
-                        ?? FindAnyObjectByType<RadioAnnouncer>();
-            RadioAnnouncer.ResetSessionFlag();
-            radio?.AnnounceRendezvous(code, force: true);
         }
 
         static void Bind(Button? button, UnityEngine.Events.UnityAction action)
