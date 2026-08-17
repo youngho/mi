@@ -32,6 +32,7 @@ namespace PinkSoft.Core.Lobby
 
         [Header("Options")]
         [SerializeField] bool submitTestResultOnSelect = true;
+        [SerializeField] bool allowOfflinePlay = true;
         [SerializeField] bool hideCursor;
 
         bool _busy;
@@ -106,18 +107,19 @@ namespace PinkSoft.Core.Lobby
         IEnumerator PrefetchCatalog()
         {
             var api = PinkSoftApiClient.Instance;
-            if (api == null || !api.HasToken)
+            if (api == null)
             {
-                ShowStatus("온라인 Clearance 후 카탈로그를 불러옵니다");
+                ShowStatus("API 클라이언트가 없습니다");
                 yield break;
             }
 
+            // 카탈로그는 공개 GET. Nobody/오프라인도 목록은 볼 수 있다.
             ShowStatus("미션 카탈로그 로딩…");
             PinkSoftApiClient.CatalogResponse? catalog = null;
             yield return api.FetchCatalog(null, res => catalog = res);
             if (catalog?.missions == null || catalog.missions.Length == 0)
             {
-                ShowStatus("카탈로그가 비어 있습니다");
+                ShowStatus("카탈로그를 불러오지 못했습니다");
                 yield break;
             }
 
@@ -144,15 +146,34 @@ namespace PinkSoft.Core.Lobby
 
             var session = AgentSession.Require();
             var api = PinkSoftApiClient.Instance;
-            if (api == null || !api.HasToken)
+            if (api == null)
             {
-                ShowStatus("API 토큰 없음 — Rendezvous에서 온라인 Clearance 필요");
+                ShowStatus("API 클라이언트가 없습니다");
+                return;
+            }
+
+            if (!api.HasToken)
+            {
+                if (!allowOfflinePlay)
+                {
+                    ShowStatus("API 토큰 없음 — 온라인 Clearance 필요");
+                    return;
+                }
+
+                StartLocalDeploy(session, mission);
                 return;
             }
 
             _busy = true;
             ShowStatus($"투입 준비 — {mission.title}");
             StartCoroutine(DeployRoutine(session, api, mission));
+        }
+
+        void StartLocalDeploy(AgentSession session, PinkSoftApiClient.MissionMeta mission)
+        {
+            session.SetActiveRun($"local:{mission.missionId}", mission.missionId, mission.title);
+            RefreshPartyPanel();
+            ShowStatus($"게스트 런 (로컬) — {mission.title}");
         }
 
         IEnumerator DeployRoutine(AgentSession session, PinkSoftApiClient api, PinkSoftApiClient.MissionMeta mission)
