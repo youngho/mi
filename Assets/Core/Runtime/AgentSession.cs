@@ -173,6 +173,40 @@ namespace PinkSoft.Core
 
         public AddResult TryAddNobody() => TryAddAgent(BuildNobodyUser(), isNobody: true);
 
+        /// <summary>슬롯 한 명을 파티에서 제거. 해당 요원의 로그인만 해제하고 집결 코드는 유지한다.</summary>
+        public bool TryRemoveAgent(int index, out AgentSlot removed)
+        {
+            if (index < 0 || index >= _party.Count)
+            {
+                removed = default;
+                return false;
+            }
+
+            removed = _party[index];
+            _party.RemoveAt(index);
+
+            if (!string.IsNullOrEmpty(LastAuthenticatedUserId))
+            {
+                var stillPresent = false;
+                for (var i = 0; i < _party.Count; i++)
+                {
+                    if (_party[i].User.userId == LastAuthenticatedUserId)
+                    {
+                        stillPresent = true;
+                        break;
+                    }
+                }
+
+                if (!stillPresent)
+                    LastAuthenticatedUserId = null;
+            }
+
+            if (_party.Count == 0)
+                ServerPartyId = null;
+
+            return true;
+        }
+
         public void SetBayId(string? bayId)
         {
             if (!string.IsNullOrWhiteSpace(bayId))

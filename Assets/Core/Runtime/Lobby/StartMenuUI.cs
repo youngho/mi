@@ -28,6 +28,7 @@ namespace PinkSoft.Core.Lobby
         [SerializeField] Image[] partySlotBackgrounds = System.Array.Empty<Image>();
         [SerializeField] GameObject[] partySlotRoots = System.Array.Empty<GameObject>();
         [SerializeField] RawImage[] partySlotPortraits = System.Array.Empty<RawImage>();
+        [SerializeField] Button[] partySlotRemoveButtons = System.Array.Empty<Button>();
         [SerializeField] Texture2D nobodyPortraitTexture = null!;
         [SerializeField] PinkSoftApiClient apiClient = null!;
         [SerializeField] bool allowOfflineClearance = true;
@@ -112,6 +113,15 @@ namespace PinkSoft.Core.Lobby
             Bind(nobodyButton, OnAddNobody);
             Bind(enterStationButton, OnEnterStation);
             Bind(bdsCheckButton, OnOpenBdsCheck);
+            for (var i = 0; i < partySlotRemoveButtons.Length; i++)
+            {
+                var index = i;
+                var button = partySlotRemoveButtons[i];
+                if (button == null)
+                    continue;
+                button.onClick.RemoveAllListeners();
+                button.onClick.AddListener(() => OnRemovePartyMember(index));
+            }
         }
 
         static void Bind(Button? button, UnityEngine.Events.UnityAction action)
@@ -318,6 +328,30 @@ namespace PinkSoft.Core.Lobby
 
             var result = AgentSession.Require().TryAddNobody();
             HandleAddResult(result, "Nobody(Guest) — 시스템 기본값으로 파티에 추가됨");
+        }
+
+        public void OnRemovePartyMember(int index)
+        {
+            if (_busy)
+                return;
+
+            var session = AgentSession.Require();
+            if (!session.TryRemoveAgent(index, out var removed))
+                return;
+
+            if (!removed.IsNobody)
+            {
+                var api = PinkSoftApiClient.Instance ?? apiClient;
+                if (api != null
+                    && (api.UserId == removed.User.userId
+                        || string.Equals(api.Nickname, removed.User.nickname, System.StringComparison.OrdinalIgnoreCase)))
+                    api.ClearAuth();
+            }
+
+            var name = removed.IsNobody ? AgentSession.NobodyNickname : removed.User.nickname;
+            SetIdentityStatus($"{name} 해제됨. 다시 등록할 수 있습니다.");
+            ShowStatus($"{name} — 파티에서 제거");
+            UpdateRendezvousPanel();
         }
 
         void AddAgentToParty(RuntimeUserData user, bool isNobody, string okMessage)

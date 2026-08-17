@@ -26,6 +26,13 @@ namespace PinkSoft.Core
         public string? LastRunId => _lastRunId;
         public bool HasToken => !string.IsNullOrEmpty(_token);
 
+        public void ClearAuth()
+        {
+            _token = null;
+            _userId = null;
+            _nickname = null;
+        }
+
         public static PinkSoftApiClient EnsureOn(GameObject host)
         {
             if (Instance != null)
