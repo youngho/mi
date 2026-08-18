@@ -6,7 +6,7 @@ using UnityEngine.UI;
 namespace PinkSoft.Core.Lobby
 {
     /// <summary>
-    /// 애플 앨범/뮤직 스타일: 가운데 추천(선택) 카드 + 하단 가로 목록.
+    /// 전술 태블릿: 가운데 미션 카드 스트립 + 하단 선택 상세.
     /// </summary>
     public sealed class MissionAlbumView : MonoBehaviour
     {
@@ -24,9 +24,9 @@ namespace PinkSoft.Core.Lobby
         [SerializeField] GameObject tilePrefab = null!;
 
         [Header("Look")]
-        [SerializeField] Color cardIdle = new(0.88f, 0.90f, 0.92f, 1f);
-        [SerializeField] Color cardSelected = new(0.55f, 0.92f, 1f, 1f);
-        [SerializeField] Color accent = new(0.35f, 0.78f, 0.86f, 1f);
+        [SerializeField] Color cardIdle = Color.white;
+        [SerializeField] Color cardSelected = new(0.72f, 0.94f, 1f, 1f);
+        [SerializeField] Color accent = new(0.35f, 0.82f, 0.95f, 1f);
         [SerializeField] Color textPrimary = new(0.95f, 0.94f, 0.92f, 1f);
         [SerializeField] Color textMuted = new(0.62f, 0.64f, 0.66f, 1f);
 
@@ -108,9 +108,8 @@ namespace PinkSoft.Core.Lobby
             }
 
             var m = _missions[_selected];
-            var isRec = _selected == 0;
             if (featuredBadgeText != null)
-                featuredBadgeText.text = isRec ? "추천" : "선택됨";
+                featuredBadgeText.text = "선택됨";
             if (featuredTitleText != null)
                 featuredTitleText.text = string.IsNullOrEmpty(m.title) ? m.missionId : m.title;
             if (featuredBodyText != null)
@@ -125,11 +124,7 @@ namespace PinkSoft.Core.Lobby
                     $"{m.category}  ·  Lv.{m.requiredLevel}+  ·  {time}  ·  목표 {target}\n{m.missionId}";
             }
 
-            if (featuredCardImage != null)
-            {
-                // 패널 스프라이트면 시안 틴트로 선택 강조
-                featuredCardImage.color = cardSelected;
-            }
+            // 상세 패널은 씬 스프라이트를 유지. 색을 덮어쓰지 않는다.
             if (deployButton != null)
                 deployButton.interactable = true;
         }

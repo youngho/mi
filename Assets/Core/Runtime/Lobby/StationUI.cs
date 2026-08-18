@@ -9,7 +9,7 @@ using UnityEngine.UI;
 namespace PinkSoft.Core.Lobby
 {
     /// <summary>
-    /// Station 씬 UI. 미션은 앨범형(가운데 추천 + 하단 목록)으로 고른다.
+    /// Station 씬 UI. 전술 태블릿: 상단 파티 슬롯, 가운데 미션 카드, 하단 상세·투입.
     /// </summary>
     public sealed class StationUI : MonoBehaviour
     {
@@ -27,8 +27,9 @@ namespace PinkSoft.Core.Lobby
         [SerializeField] Text[] partyMemberLabels = System.Array.Empty<Text>();
         [SerializeField] Image[] partyMemberChipImages = System.Array.Empty<Image>();
         [SerializeField] Button editPartyButton = null!;
-        [SerializeField] Color chipMemberColor = new Color(0.62f, 0.44f, 0.20f, 0.95f);
-        [SerializeField] Color chipNobodyColor = new Color(0.34f, 0.36f, 0.40f, 0.95f);
+        [SerializeField] Color chipMemberColor = Color.white;
+        [SerializeField] Color chipNobodyColor = new Color(0.82f, 0.84f, 0.82f, 1f);
+        [SerializeField] Color chipEmptyColor = new Color(0.72f, 0.74f, 0.74f, 1f);
 
         [Header("Options")]
         [SerializeField] bool submitTestResultOnSelect = true;
@@ -88,9 +89,15 @@ namespace PinkSoft.Core.Lobby
             {
                 var occupied = i < session.PartyCount;
                 if (partyMemberChips[i] != null)
-                    partyMemberChips[i].SetActive(occupied);
+                    partyMemberChips[i].SetActive(true);
                 if (!occupied)
+                {
+                    if (i < partyMemberLabels.Length && partyMemberLabels[i] != null)
+                        partyMemberLabels[i].text = $"Squad Mate {i + 1}";
+                    if (i < partyMemberChipImages.Length && partyMemberChipImages[i] != null)
+                        partyMemberChipImages[i].color = chipEmptyColor;
                     continue;
+                }
 
                 var slot = session.Party[i];
                 var nick = slot.IsNobody ? AgentSession.NobodyNickname : slot.User.nickname;
