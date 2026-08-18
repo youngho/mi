@@ -221,6 +221,9 @@ namespace PinkSoft.Core.BdsCheck
                     break;
             }
 
+            // 씬 전역 뒤로가기 — 페이즈 버튼 그룹과 무관하게 항상 표시
+            SetActive(introBackButton != null ? introBackButton.gameObject : null, true);
+
             RefreshHitMarkers();
             RefreshHidStatus();
         }
