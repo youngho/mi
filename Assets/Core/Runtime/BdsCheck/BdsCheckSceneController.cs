@@ -190,7 +190,7 @@ namespace PinkSoft.Core.BdsCheck
                     SetTexts(
                         "BDS Check — Teensy R HID",
                         _cachedStatusLine,
-                        "HID 통과 좌표를 5포인트와 비교합니다.\nTeensy Mouse.moveTo + click → 이 화면\n오른쪽 SerialPanel에서 USB 연결 후 inject 30 30\n→ 아래 HID Last hit 확인 후 검증 시작");
+                        "HID 통과 좌표를 5포인트와 비교합니다.\nTeensy Mouse.moveTo + click → 이 화면\n오른쪽 SerialPanel에서 USB 연결 후 inject 30 30\n→ 아래 HID Last hit 확인 후 CHECK START");
                     ShowButtonGroup(introButtonGroup);
                     SetTargetMarkerVisible(false);
                     break;
