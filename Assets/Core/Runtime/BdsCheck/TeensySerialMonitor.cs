@@ -58,6 +58,24 @@ namespace PinkSoft.Core.BdsCheck
             EnsureLogLayout();
             RefreshPortList();
             SetStatus("대기 — USB 포트 선택 후 연결");
+            
+            WireShortcutButton("statusButton", "status");
+            WireShortcutButton("inject 30 30Button", "inject 30 30");
+            WireShortcutButton("startButton", "start");
+            WireShortcutButton("stopButton", "stop");
+        }
+
+        void WireShortcutButton(string buttonName, string command)
+        {
+            var go = GameObject.Find(buttonName);
+            if (go != null)
+            {
+                var btn = go.GetComponent<UnityEngine.UI.Button>();
+                if (btn != null)
+                {
+                    btn.onClick.AddListener(() => SendLine(command));
+                }
+            }
         }
 
         void Update()
