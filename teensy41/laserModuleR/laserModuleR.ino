@@ -100,8 +100,20 @@
  *   ※ 레이저 GND를 Teensy 핀에 직접 물리지 말 것 (과전류 위험)
  *
  * ---------------------------------------------------------------------------
- * Photodiode / LM393 센서 모듈 (레이저 반사·차단 검출) · Sync
+ * Photodiode / LM393 센서 모듈 — 재귀반사 차단(Beam Interrupt) · Sync
  * ---------------------------------------------------------------------------
+ *   설명서: teensy41/laser-lm393-interrupt.md
+ *   LM393은 렌즈/증폭이 없어 원거리 산란광(Diffuse)을 DO로 뒤집지 못한다.
+ *   화면 상단·반대편 테두리에 재귀반사 테이프를 붙이고, 평소 강한 귀환광을
+ *   읽다가 손가락/탄이 레이저 궤적을 끊는 짧은 소실을 HIT로 본다.
+ *
+ *        retro tape (top + far edge)
+ *   ┌─────────────────────────────┐
+ *   │  scan → tape → return (beam)│
+ *   │           ● object          │
+ *   │            ╳ breaks return  │
+ *   └────[laser + PD]─────────────┘
+ *
  *   보드 실크 핀 배열 (센서·가변저항 쪽을 위, 4핀 헤더를 아래로 볼 때
  *   왼쪽 → 오른쪽):
  *
@@ -112,9 +124,9 @@
  *     └──┴──┴───┴───┘
  *
  *   Teensy 연결 (필수):
- *     모듈 AO  → Teensy A1   (PIN_SENSOR_AO=15, 아날로그 세기·디버그)
+ *     모듈 AO  → Teensy A1   (PIN_SENSOR_AO=15)
  *                   ※ A0(14)는 TFT BL과 충돌하므로 사용하지 않음
- *     모듈 DO  → Teensy Pin5 (PIN_SENSOR_DO, HIT 디지털)
+ *     모듈 DO  → Teensy Pin5 (PIN_SENSOR_DO, CHANGE IRQ)
  *     모듈 GND → Teensy GND  (공통)
  *     모듈 VCC → Teensy 3.3V (※ 5V 금지 — DO가 5V면 Teensy 4.1 손상 위험)
  *
@@ -122,11 +134,12 @@
  *     AO=노랑, DO=주황, GND=빨강, VCC=갈/밤색
  *
  *   DO-LED: 디지털 출력 상태 / PWR-LED: 전원
- *   가변저항: DO 임계(감도). HIT가 항상 1이면 임계·주변광 조정
+ *   가변저항: 테이프 귀환 때 DO-LED가 켜지도록 임계 조정
  *
- *   보드마다 DO 극성이 다름:
- *     SENSOR_DO_ACTIVE_LOW=true  → DO=LOW 일 때 HIT (흔한 LM393 보드)
- *     SENSOR_DO_ACTIVE_LOW=false → DO=HIGH 일 때 HIT
+ *   SENSOR_DO_ACTIVE_LOW=true  → DO=LOW 가 수광(beam present). 흔한 LM393.
+ *   기본 mode=int : 짧은 수광 소실 = HIT (산란 검출이 아님)
+ *   USB `ao [ms]` 로 AO span 확인. 의미 있으면 `aoth` 후 `mode ao`.
+ *   span이 거의 0이면 산란 직접 검출은 불가 → 테이프+mode int 필수.
  *
  *   Sync: Pin6 (PIN_SYNC, INPUT_PULLUP). 미연결 시 `theta2 <deg>` + 수신 θ1 테스트
  *
@@ -158,6 +171,7 @@
 
 #include <Arduino.h>
 #include "TftLog.h"
+#include "SensorDetect.h"
 #include <Mouse.h>
 
 // Mouse 객체는 Teensy USB Type에 Mouse가 포함될 때만 존재한다.
@@ -170,12 +184,9 @@
 static const int PIN_MOTOR_CLK = 2;   // C
 static const int PIN_MOTOR_LD  = 3;   // L
 static const int PIN_MOTOR_SS  = 4;   // S
-static const int PIN_SENSOR_DO = 5;   // 포토다이오드 모듈 DO
-static const int PIN_SENSOR_AO = A1;  // 포토다이오드 모듈 AO (A0=14는 TFT BL)
 static const int PIN_SYNC      = 6;   // 0° Sync 입력
 static const int PIN_LASER     = 9;   // NPN 베이스 구동 (HIGH=레이저 ON)
-
-static const bool SENSOR_DO_ACTIVE_LOW = true;
+// PIN_SENSOR_DO=5, PIN_SENSOR_AO=A1, SENSOR_DO_ACTIVE_LOW → SensorDetect.h
 static const bool SYNC_ACTIVE_FALLING = true;
 static const bool LASER_DEFAULT_ON = false;
 
@@ -201,7 +212,7 @@ static const bool EMIT_CLICK_ON_HIT = true;
 static const uint32_t CLICK_COOLDOWN_MS = 80;
 
 // ---- Motor defaults ----
-static const uint32_t CLK_HZ_DEFAULT = 2000;
+static const uint32_t CLK_HZ_DEFAULT = 1000;
 static const uint32_t CLK_HZ_MIN     = 100;
 static const uint32_t CLK_HZ_MAX     = 10000;
 
@@ -215,7 +226,6 @@ static uint32_t g_lastMotorSyncMs = 0;
 // Slave(L) 모터 동기 주기 — L이 늦게 켜져도 따라오도록 running 중 재전송
 static const uint32_t MOTOR_SYNC_PERIOD_MS = 2000;
 static const uint32_t LINK_PING_TIMEOUT_MS = 300;
-static bool g_lastHit = false;
 static bool g_sensorReady = false;
 static bool g_laserOn = false;
 
@@ -359,12 +369,6 @@ static bool isLocked()
   return digitalRead(PIN_MOTOR_LD) == LOW;
 }
 
-static bool isSensorHit()
-{
-  const bool doHigh = digitalRead(PIN_SENSOR_DO) == HIGH;
-  return SENSOR_DO_ACTIVE_LOW ? !doHigh : doHigh;
-}
-
 static void setLaser(bool on)
 {
   digitalWrite(PIN_LASER, on ? HIGH : LOW);
@@ -372,7 +376,7 @@ static void setLaser(bool on)
   logf("[laser] %s pin%d\n", on ? "ON" : "OFF", PIN_LASER);
 }
 
-static bool computeTheta2(float *outDeg)
+static bool computeTheta2(float *outDeg, uint32_t eventUs)
 {
   if (!g_syncSeen || g_periodUs == 0) {
     return false;
@@ -382,8 +386,7 @@ static bool computeTheta2(float *outDeg)
   const uint32_t periodUs = g_periodUs;
   interrupts();
 
-  const uint32_t now = micros();
-  const uint32_t dt = now - syncUs;
+  const uint32_t dt = eventUs - syncUs;
   if (dt >= periodUs) {
     return false;
   }
@@ -484,26 +487,21 @@ static void pollSensor()
     return;
   }
 
-  const bool hit = isSensorHit();
-  if (hit == g_lastHit) {
+  uint32_t hitUs = 0;
+  uint32_t widthUs = 0;
+  if (!sensorTakeHit(&hitUs, &widthUs)) {
     return;
   }
-  g_lastHit = hit;
 
   const int ao = analogRead(PIN_SENSOR_AO);
-  if (hit) {
-    logf("[hit] DO=%d\n", digitalRead(PIN_SENSOR_DO));
-    logf("[hit] AO=%d\n", ao);
-    float th2 = 0.0f;
-    if (computeTheta2(&th2)) {
-      processHitWithTheta2(th2);
-    } else {
-      logln("[hit] no sync");
-      logln(" use: theta2 <deg>");
-    }
+  logf("[hit] w=%luus\n", (unsigned long)widthUs);
+  logf("[hit] DO=%d AO=%d\n", digitalRead(PIN_SENSOR_DO), ao);
+  float th2 = 0.0f;
+  if (computeTheta2(&th2, hitUs)) {
+    processHitWithTheta2(th2);
   } else {
-    logf("[clr] DO=%d\n", digitalRead(PIN_SENSOR_DO));
-    logf("[clr] AO=%d\n", ao);
+    logln("[hit] no sync");
+    logln(" use: theta2 <deg>");
   }
 }
 
@@ -588,7 +586,8 @@ static void printHelp()
   logln(" stop");
   logln(" clk <hz>");
   logln(" status");
-  logln(" sensor");
+  logln(" sensor | ao [ms]");
+  logln(" mode int|diff|ao");
   logln(" laser on|off");
   logln(" theta2 <deg>");
   logln(" inject <t1> <t2>");
@@ -627,8 +626,10 @@ static void handleSerial()
     } else if (lower == "status") {
       logln("[cmd] status");
       logf(" run=%d lk=%d\n", g_running ? 1 : 0, isLocked() ? 1 : 0);
-      logf(" clk=%lu hit=%d\n",
-                    (unsigned long)g_clkHz, isSensorHit() ? 1 : 0);
+      logf(" clk=%lu mode=%s\n",
+                    (unsigned long)g_clkHz, sensorModeName());
+      logf(" beam=%d hit=%d\n",
+                    isBeamPresent() ? 1 : 0, isSensorHit() ? 1 : 0);
       logf(" sync=%d p=%lu\n",
                     g_syncSeen ? 1 : 0, (unsigned long)g_periodUs);
       logf(" th1=%.2f f=%d\n",
@@ -636,12 +637,8 @@ static void handleSerial()
                     isTheta1Fresh() ? 1 : 0);
       logf(" hid=%d las=%d\n",
                     g_hidEnabled ? 1 : 0, g_laserOn ? 1 : 0);
-    } else if (lower == "sensor") {
-      logf(" hit=%d DO=%d\n",
-                    isSensorHit() ? 1 : 0, digitalRead(PIN_SENSOR_DO));
-      logf(" AO=%d al=%d\n",
-                    analogRead(PIN_SENSOR_AO),
-                    SENSOR_DO_ACTIVE_LOW ? 1 : 0);
+    } else if (sensorHandleCommand(lower)) {
+      // sensor | ao | mode | aoth | aodir
     } else if (lower.startsWith("laser")) {
       const int sp = lower.indexOf(' ');
       if (sp < 0) {
@@ -755,9 +752,8 @@ void setup()
   odWrite(PIN_MOTOR_SS, true);
   odWrite(PIN_MOTOR_CLK, true);
 
-  logln("5/8 sensor I/O");
-  pinMode(PIN_SENSOR_DO, INPUT);
-  g_lastHit = isSensorHit();
+  logln("5/8 sensor IRQ");
+  sensorBegin();
   g_sensorReady = true;
 
   logln("6/8 Sync IRQ");
@@ -774,6 +770,7 @@ void setup()
   logln("USB:Kbd+Mouse+Joy");
   logln("VIN5V GND common");
   logln("AO|DO->A1|5");
+  logln("mode=int tape");
   logln("Sync6 Laser9");
   logln("UART 0<->1 GND");
   logln("then: laser on");
@@ -798,5 +795,7 @@ void loop()
     }
   }
 
-  delay(1);
+  if (!g_running) {
+    delay(1);
+  }
 }

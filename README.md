@@ -1,6 +1,6 @@
 # PinkSoft Mission System (PMS) 기획서
 
-> **구현 산출물:** [개발 로드맵](docs/roadmap.md) · [BDS Go/No-Go](docs/bds-gonogo-checklist.md) · [Mission SDK v1](docs/mission-sdk-v1.md) · [API 명세](docs/api-openapi.yaml) · [Rendezvous UX 흐름](docs/rendezvous-flow.md) · [Addressables 결정](docs/decisions/addressables.md)
+> **구현 산출물:** [개발 로드맵](docs/roadmap.md) · [BDS Go/No-Go](docs/bds-gonogo-checklist.md) · [Mission SDK v1](docs/mission-sdk-v1.md) · [API 명세](docs/api-openapi.yaml) · [Rendezvous UX 흐름](docs/rendezvous-flow.md) · [LM393 레이저 커튼](teensy41/laser-lm393-interrupt.md) · [Addressables 결정](docs/decisions/addressables.md)
 
 ## 프로젝트 구조
 
@@ -215,6 +215,7 @@ BDS는 **PMS Core의 하위시스템**으로 상주합니다 (`BdsService`). LiD
 ```
 
 - **BDS Check:** 전용 씬 `BdsCheck` — `laserModuleR` USB HID(`Mouse.moveTo`/`click`) → `TouchInputSource` → 5포인트 매칭. Game 뷰 **1920×1080**.
+- **레이저 커튼 (LM393):** 산란광이 아니라 테두리 **재귀반사 테이프 차단**. 설치·명령·AO 진단은 [teensy41/laser-lm393-interrupt.md](teensy41/laser-lm393-interrupt.md).
 - **모바일:** Core가 `TouchInputSource`로 교체 — 미션 코드 변경 없음
 
 ```

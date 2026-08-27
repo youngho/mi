@@ -3,7 +3,8 @@
 ## 한 줄 요약
 
 **Teensy R(`laserModuleR`)이 USB HID 마우스로 보낸 통과 좌표**를, 전용 씬 `BdsCheck`에서 화면 **5포인트**와 매칭해 센서·정렬 이상을 확인한다.  
-Game 뷰 / 플레이어 해상도는 **1920×1080**을 기준으로 한다.
+Game 뷰 / 플레이어 해상도는 **1920×1080**을 기준으로 한다.  
+레이저·LM393 설치는 [laser-lm393-interrupt.md](../teensy41/laser-lm393-interrupt.md).
 
 ## 입력 경로 (현재 정식)
 
@@ -101,6 +102,8 @@ Intro/Checking/Summary 전 구간에서 TextPanel의 **HidStatusText**가 갱신
 플러그인: macOS는 `PosixSerialSession`(libc termios). Windows는 미지원.
 
 씬 UI는 `BdsCheckCanvas` Hierarchy에서 직접 편집한다.
+
+하드웨어 검출(LM393 재귀반사 차단, 테이프·시리얼 명령)은 [laser-lm393-interrupt.md](../teensy41/laser-lm393-interrupt.md).
 
 ## 관련 코드 · 씬
 

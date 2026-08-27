@@ -1,6 +1,6 @@
 # PinkSoft 개발 로드맵 (세분화)
 
-[BDS Go/No-Go 체크리스트](bds-gonogo-checklist.md) · [Mission SDK v1](mission-sdk-v1.md) · [API 명세](api-openapi.yaml)
+[BDS Go/No-Go 체크리스트](bds-gonogo-checklist.md) · [Mission SDK v1](mission-sdk-v1.md) · [API 명세](api-openapi.yaml) · [LM393 레이저 커튼](../teensy41/laser-lm393-interrupt.md)
 
 ## Track A: BDS (우선)
 
