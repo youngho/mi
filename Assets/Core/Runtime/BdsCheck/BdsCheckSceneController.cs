@@ -146,12 +146,12 @@ namespace PinkSoft.Core.BdsCheck
         void WireButtons()
         {
             Bind(startButton, BeginCheck);
-            Bind(introBackButton, ReturnToRendezvous);
+            Bind(introBackButton, LeaveCheck);
             Bind(skipButton, SkipCurrentPoint);
             Bind(restartButton, BeginCheck);
-            Bind(abortButton, ReturnToRendezvous);
+            Bind(abortButton, LeaveCheck);
             Bind(retryButton, BeginCheck);
-            Bind(doneButton, ReturnToRendezvous);
+            Bind(doneButton, LeaveCheck);
         }
 
         static void Bind(Button? button, UnityEngine.Events.UnityAction action)
@@ -507,18 +507,30 @@ namespace PinkSoft.Core.BdsCheck
             }
         }
 
-        public void ReturnToRendezvous()
+        /// <summary>
+        /// 파티가 있을 때만 로비로 돌아간다. 하드웨어 단독 실행(Boot→BdsCheck)은 이 씬에 남는다.
+        /// </summary>
+        public void LeaveCheck()
         {
             if (_closed)
                 return;
+
+            var session = AgentSession.Instance;
+            if (session == null || !session.HasParty)
+            {
+                _acceptingHits = false;
+                SetPhase(Phase.Intro);
+                return;
+            }
+
             _closed = true;
             _acceptingHits = false;
             DetachInput();
             _bds?.ExitCalibrationMode();
-            var target = AgentSession.Instance != null
-                ? AgentSession.Instance.ResolveBdsReturnScene()
-                : returnSceneName;
-            SceneManager.LoadScene(target);
+            SceneManager.LoadScene(session.ResolveBdsReturnScene());
         }
+
+        /// <summary>씬에 남은 Button onClick 바인딩용. <see cref="LeaveCheck"/>와 동일.</summary>
+        public void ReturnToRendezvous() => LeaveCheck();
     }
 }

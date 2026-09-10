@@ -1,6 +1,9 @@
-# PinkSoft Mission System (PMS) 기획서
+# PinkSoft Mission System (PMS)
 
-> **구현 산출물:** [개발 로드맵](docs/roadmap.md) · [BDS Go/No-Go](docs/bds-gonogo-checklist.md) · [Mission SDK v1](docs/mission-sdk-v1.md) · [API 명세](docs/api-openapi.yaml) · [Rendezvous UX 흐름](docs/rendezvous-flow.md) · [LM393 레이저 커튼](teensy41/laser-lm393-interrupt.md) · [Addressables 결정](docs/decisions/addressables.md)
+> **지금:** 정적 투과빔 1줄 + PIN PD로 BB 검출 Go. 격자·Unity는 아직.  
+> [투과빔](docs/bds-gonogo-throughbeam.md)
+
+> **구 기획 산출물 (참고만):** [개발 로드맵](docs/roadmap.md) · [BDS Go/No-Go](docs/bds-gonogo-checklist.md) · [Mission SDK v1](docs/mission-sdk-v1.md) · [API 명세](docs/api-openapi.yaml) · [Rendezvous UX 흐름](docs/rendezvous-flow.md) · [Addressables 결정](docs/decisions/addressables.md)
 
 ## 프로젝트 구조
 
@@ -66,15 +69,12 @@ BdsService (Core 상주, DontDestroyOnLoad)
 | `Assets/Settings/URP_Renderer.asset` | URP Forward Renderer |
 | `Assets/UniversalRenderPipelineGlobalSettings.asset` | URP 글로벌 설정 |
 
-### 씬 구성 권장
+### 씬 구성
 
-1. **Boot** — `BdsService`, `MissionInputRouter`, `MissionSessionController` · Main Camera에 `UniversalAdditionalCameraData`
-2. **Rendezvous** — 최대 4명 Clearance/Nobody 등록 → **Station 진입** 버튼으로만 Station
-3. **BdsCheck** — Teensy R USB HID 통과 좌표 5포인트 검증 (Game 뷰 **1920×1080**)
-4. **Mission** — 선택 미션 수행만 (BDS/교정 UI 없음) · URP 셰이더·머티리얼 사용
+1. **Boot** → **BdsCheck** (현재 제품 입구). Teensy HID 5포인트 검증, Game 뷰 **1920×1080**
+2. **Rendezvous / Station / Mission** — 동결. 하드웨어 검증 뒤에 다시 연다.
 
-**흐름:** 접선에서 파티 구성 → Station 진입 → 미션 목록. BDS Check는 Teensy HID 검증 전용 씬.  
-상세: [docs/rendezvous-flow.md](docs/rendezvous-flow.md) · [docs/bds-check.md](docs/bds-check.md)
+상세: [docs/bds-check.md](docs/bds-check.md)
 
 상세 스펙: [Mission SDK v1](docs/mission-sdk-v1.md) · Unity 가이드: [unity/PinkSoft/README.md](unity/PinkSoft/README.md) (→ 레포 루트에서 Hub로 열기)
 

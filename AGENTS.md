@@ -2,6 +2,13 @@
 
 Unity 프로젝트. 에이전트는 아래 규칙을 세션 시작부터 항상 따른다.
 
+## 현재 상태: 투과 1줄로 BB 검출 Go. 격자는 아직.
+
+- 점수는 BB 명중 좌표. 피에조/마이크 금지. 폴리곤·LM393 모듈·카메라·라이다 금지.
+- **정적 투과빔 1줄 + PIN PD + `mode adc` 로 BB를 봤다.** [docs/bds-gonogo-throughbeam.md](docs/bds-gonogo-throughbeam.md)
+- 요청 전에 격자·Unity·로비를 만들지 않는다.
+- `BdsCheck` `inject`는 HID만. Rendezvous/Station/미션/백엔드/SDK는 동결.
+
 ## Unity UI: 씬만 디자인 / C#은 기능만
 
 UI 디자인·배치는 **씬(Hierarchy / Inspector)** 에서만 한다.

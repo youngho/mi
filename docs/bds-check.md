@@ -40,11 +40,12 @@ BB/터치 통과
 ## 흐름
 
 ```
-Rendezvous (접선/Station)
-  └─ [BDS Check] → LoadScene("BdsCheck")
-                      └─ TouchInputSource로 HID hit 수신
-                      └─ 5포인트 검증
-                      └─ 완료 → LoadScene("Rendezvous")
+Boot
+  └─ BdsCheck (제품 입구)
+       └─ TouchInputSource로 HID hit 수신
+       └─ 5포인트 검증
+       └─ 완료/뒤로 → 파티 없으면 이 씬에 잔류 (Intro)
+                    → 파티 있으면 Rendezvous/Station으로 복귀 (동결된 로비 경로)
 ```
 
 ## 현재 범위
