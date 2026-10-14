@@ -1,0 +1,13 @@
+{
+  "name": "hangul",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "한글 키워드 언어를 자바스크립트로 컴파일한다",
+  "bin": {
+    "hangul": "./cli.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
